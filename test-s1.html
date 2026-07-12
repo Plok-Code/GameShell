@@ -1,0 +1,1517 @@
+<meta charset="utf-8">
+<title>GameShell · Test S1 (l'interpréteur)</title>
+<style>
+  :root{
+    --bg:#0a0b14; --panel:#12131f; --line:#232538;
+    --txt:#c9cee0; --dim:#6b7192; --faint:#3c415e;
+    --cyan:#22d3ee; --mag:#e64bd0; --vio:#8b7bff;
+    --ok:#41d68a; --err:#ff5470; --gold:#ffcc66;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:"JetBrains Mono",ui-monospace,"Cascadia Code",Consolas,monospace}
+  #app{max-width:1000px;margin:0 auto;padding:26px 22px 30px;display:flex;flex-direction:column;min-height:100vh}
+  header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px}
+  h1{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0;font-weight:600}
+  #lvlno{color:var(--dim);font-size:13px}
+  /* barre d'état sous le titre : niveau courant + compteur d'erreurs */
+  #hud{display:flex;justify-content:space-between;align-items:center;margin:0 0 14px;min-height:18px}
+  #errs{display:flex;align-items:center;gap:5px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  #errs b{font-weight:600;color:var(--dim);margin-right:3px}
+  #errs.bad{color:#c98a97}
+  #errs.bad b{color:var(--err)}
+  #errs .dot{width:10px;height:10px;border-radius:50%;background:#151827;border:1px solid #2a2d44}
+  #errs .dot.on{background:var(--err);border-color:var(--err);box-shadow:0 0 10px #ff547088}
+  #errs.flash{animation:errflash .5s}
+  @keyframes errflash{0%{transform:scale(1)}35%{transform:scale(1.3)}100%{transform:scale(1)}}
+  .stage{display:grid;grid-template-columns:1fr 1fr;gap:18px;flex:1;align-content:start}
+  /* zone de mémoire qui BOUCLE (wrap) : bords en pointillés, le marqueur s'apprend une fois */
+  #gridbox.wrapzone{border-style:dashed;border-color:#3a5a7c}
+  @media(max-width:760px){.stage{grid-template-columns:1fr}}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+  /* grille 2D */
+  #grid{display:flex;flex-direction:column;gap:9px;min-height:70px}
+  .row{display:flex;gap:9px}
+  .cell{width:52px;height:52px;border-radius:10px;border:1px solid #2a2d44;background:#0e1020;
+    display:flex;align-items:center;justify-content:center;font-size:18px;color:#aeb6d6;position:relative;
+    transition:transform .09s, box-shadow .09s}
+  .cell.empty{color:#252940;font-size:13px}
+  .cell.col-rouge{background:#2a1016;border-color:#7c2a38}
+  .cell.col-bleu{background:#0e1a33;border-color:#2a4a7c}
+  .cell.col-vert{background:#0e2418;border-color:#2a6c48}
+  .cell.target{border-style:dashed;border-color:var(--gold)}
+  .cell.target::after{content:"⌖";position:absolute;top:1px;right:4px;font-size:10px;color:var(--gold);opacity:.85}
+  .cell.pion{box-shadow:0 0 0 2px var(--cyan),0 0 20px #22d3ee44;color:#eafcff;transform:translateY(-2px)}
+  .cell.word{font-size:12px;letter-spacing:.02em}
+  /* panneau des boîtes (échafaudage mémoire, s'éteint quand c'est ancré) */
+  #varsp{display:none;margin-top:14px;padding-top:12px;border-top:1px dashed #232538;gap:8px;flex-wrap:wrap}
+  #varsp.show{display:flex}
+  #varsp .vlabel{color:var(--faint);font-size:11px;align-self:center;letter-spacing:.1em;text-transform:uppercase;margin-right:2px}
+  .vchip{background:#101425;border:1px solid #2a2d44;border-left:2px solid var(--vio);color:#dfe4f5;
+    font-size:13px;padding:4px 11px;border-radius:8px}
+  .vchip b{color:var(--gold);font-weight:600}
+  /* programme ; sur grand écran tout le code tient sans défiler, la boîte de défilement n'existe que sur petit écran */
+  pre#code{margin:0;font-size:14.5px;line-height:1.85;white-space:pre;min-height:70px;
+    overflow-y:auto;scrollbar-width:thin;scrollbar-color:#2a2d44 transparent}
+  @media(max-width:760px){pre#code{max-height:58vh}}
+  .cl{display:block;padding:1px 10px;border-radius:7px;color:#aeb6d6}
+  .cl .kw{color:var(--mag)} .cl .fn{color:var(--cyan)} .cl .nm{color:var(--gold)} .cl .str{color:var(--gold)}
+  .cl.cur{background:#1c2038;box-shadow:-3px 0 0 var(--cyan) inset;color:#eaf0ff}
+  .cl.done{color:#4a4f6e}
+  .cl .prog{color:var(--faint);font-size:11px;margin-left:8px}
+  /* chips fugaces */
+  #chips{position:fixed;right:26px;top:22px;display:flex;flex-direction:column;gap:6px;z-index:8;align-items:flex-end}
+  .chip{background:#101425;border:1px solid #2a2d44;border-left:2px solid var(--vio);color:#dfe4f5;
+    font-size:13px;padding:5px 12px;border-radius:8px;animation:chip 2.6s forwards}
+  @keyframes chip{0%{opacity:0;transform:translateY(-6px)}10%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+  /* dialogue, centré à l'écran (texte de scénario / leçons) ;
+     le voile (#dim) est séparé : un panneau .spot peut passer AU-DESSUS du voile mais SOUS la carte */
+  #dim{display:none;position:fixed;inset:0;background:#05060cc9;z-index:14}
+  #dim.show{display:block}
+  #dlg{display:none;position:fixed;inset:0;z-index:22;pointer-events:none;
+    align-items:center;justify-content:center}
+  #dlg.show{display:flex}
+  #dlg.bottom{align-items:flex-end}
+  #dlg.bottom .dlgcard{margin-bottom:5vh}
+  /* mise en valeur (tutoriels scriptés) */
+  .box.spot{position:relative;z-index:16;box-shadow:0 0 0 1px #2a4a5c,0 0 30px #22d3ee22}
+  .cl.tut{box-shadow:0 0 0 1px var(--gold) inset;color:#ffe9c0}
+  .cell.tut{box-shadow:0 0 0 2px var(--gold),0 0 22px #ffcc6666}
+  .cell.pion.tut{box-shadow:0 0 0 2px var(--cyan),0 0 30px #22d3eeaa;color:#fff}
+  .vchip.tut{border-color:var(--err);border-left-color:var(--err);box-shadow:0 0 14px #ff547066;color:#fff}
+  .dlgcard{background:#101322;border:1px solid var(--line);border-left:3px solid var(--mag);
+    border-radius:14px;padding:26px 30px;max-width:560px;margin:20px;text-align:center;
+    box-shadow:0 12px 48px #00000088;pointer-events:auto;user-select:text}
+  #dlgtext{font-size:15.5px;line-height:1.65;color:#e6eaf8}
+  #dlgtext b,#dlgtext code{color:var(--cyan);font-style:normal;font-family:inherit}
+  #dlgnext{margin-top:14px;font-size:11.5px;color:var(--faint)}
+  /* menu des niveaux (accès libre, prototype) */
+  #menu .card{max-width:640px;text-align:left;max-height:84vh;overflow-y:auto}
+  #menu h2{color:var(--cyan);font-size:16px;letter-spacing:.06em;margin:0 0 4px}
+  .mbloc{margin:14px 0 6px;color:var(--vio);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+  .mlvls{display:flex;flex-wrap:wrap;gap:6px}
+  .mlvl{background:#0e1020;border:1px solid #2a2d44;border-radius:8px;padding:5px 10px;font-size:12px;
+    color:var(--txt);cursor:pointer;font-family:inherit}
+  .mlvl:hover{border-color:var(--cyan);color:#eafcff}
+  .mlvl.cur{border-color:var(--gold);color:var(--gold)}
+  #menuclose{margin-top:14px;color:var(--faint);font-size:11.5px}
+  /* footer */
+  footer{margin-top:16px;display:flex;gap:18px;font-size:11.5px;color:var(--faint)}
+  footer .k{color:var(--dim)}
+  /* bulle erreur */
+  #bubble{position:fixed;left:50%;top:20px;transform:translateX(-50%) translateY(-16px);
+    background:#2a0e18;border:1px solid var(--err);color:#ffd7de;padding:9px 16px;border-radius:10px;
+    font-size:13px;opacity:0;pointer-events:none;transition:.18s;z-index:9;max-width:88%}
+  #bubble.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* overlays */
+  .ov{position:fixed;inset:0;background:#05060cdd;display:none;align-items:center;justify-content:center;z-index:20}
+  .ov.show{display:flex}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 32px;text-align:center;max-width:430px}
+  .card h2{margin:0 0 6px;color:var(--ok);font-size:21px}
+  .card h2.bad{color:var(--err);letter-spacing:.08em}
+  #lose .card{border-color:#5c2333}
+  .card p{color:var(--dim);font-size:13px;line-height:1.5;margin:0}
+  .card .go{margin-top:14px;color:var(--cyan);font-size:13px}
+  /* pense-bête */
+  #pb .card{max-width:580px;text-align:left;max-height:82vh;overflow-y:auto}
+  #pb h2{color:var(--vio);font-size:16px;letter-spacing:.06em}
+  .note{margin:12px 0 0;padding:10px 14px;background:#0e1020;border:1px solid #2a2d44;border-radius:9px}
+  .note .nt{color:var(--cyan);font-size:13px;margin-bottom:3px}
+  .note .nb{color:var(--txt);font-size:12.5px;line-height:1.55}
+  .note .nb code{color:var(--gold)}
+  #pbempty{color:var(--faint);font-size:13px;margin-top:10px}
+  #pbclose{margin-top:16px;color:var(--faint);font-size:11.5px}
+</style>
+
+<div id="app">
+  <header><h1>GameShell · Test S1</h1></header>
+  <div id="hud"><span id="lvlno"></span><span id="errs"></span></div>
+  <div class="stage">
+    <div class="box" id="gridbox"><div id="grid"></div><div id="varsp"></div></div>
+    <div class="box" id="progbox"><pre id="code"></pre></div>
+  </div>
+  <footer>
+    <span style="margin-left:auto"><a href="test-feedback.html" target="_blank" style="color:var(--dim);text-decoration:none">donner mon avis</a></span>
+  </footer>
+</div>
+
+<div id="dim"></div>
+<div id="dlg"><div class="dlgcard"><div id="dlgtext"></div><div id="dlgnext">Entrée ▸</div></div></div>
+<div class="ov" id="menu"><div class="card"><h2>Niveaux · accès libre (prototype)</h2><div id="menulist"></div><div id="menuclose">M ou Échap pour fermer · clique un niveau</div></div></div>
+
+<div id="chips"></div>
+<div id="bubble"></div>
+<div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div class="go">Entrée ▸</div></div></div>
+<div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p id="losep">3 erreurs. On reprend le niveau du début.</p><div class="go">Entrée ▸ recommencer</div></div></div>
+<div class="ov" id="pb"><div class="card"><h2>Pense-bête</h2><div id="pblist"></div><div id="pbempty">Rien encore : les notions s'ajoutent au fil du jeu.</div><div id="pbclose">P ou Échap pour fermer</div></div></div>
+
+<script>
+"use strict";
+/* ================= le pense-bête ================= */
+const NOTES = {
+  programme:{t:"Le programme", b:"Une liste d'instructions, exécutées de haut en bas, une par une. Ici, le processeur qui les exécute… c'est toi."},
+  ordre:{t:"La fonction", b:"Un nom suivi de parenthèses : <code>avancer()</code>, <code>reculer()</code>, <code>monter()</code>, <code>descendre()</code>. Exécuter la ligne = appeler la fonction."},
+  argument:{t:"L'argument", b:"Le nombre entre parenthèses précise la fonction : <code>avancer(3)</code> = avancer de 3 secteurs. <code>avancer(1)</code>, c'est comme <code>avancer()</code>."},
+  variable:{t:"La variable (la boîte)", b:"Une boîte avec un nom qui contient une <b>valeur</b>. <code>x = 3</code> range la valeur 3 dans la variable x : c'est une <b>affectation</b> (le <code>=</code> n'est pas une égalité). Une variable peut servir d'argument : <code>avancer(x)</code> = avancer d'autant que contient x."},
+  lire:{t:"lire()", b:"<b>Renvoie</b> la valeur du secteur sous la sonde. <code>x = lire()</code> range la valeur renvoyée dans la variable x."},
+  ecrire:{t:"ecrire(…)", b:"Grave une valeur dans le secteur sous la sonde, et c'est toi qui la <b>tapes</b> au clavier. <code>ecrire(x)</code> : tape le contenu de la variable x."},
+  calcul:{t:"Le calcul", b:"<code>x = x + 1</code> : la machine calcule d'abord la valeur à droite du =, puis la range dans la variable à gauche. <code>x = x + 1</code> augmente donc x de 1."},
+  raccourci:{t:"Les raccourcis += et -=", b:"<code>x += 2</code> veut dire <code>x = x + 2</code> ; <code>x -= 1</code> retire 1. Même affectation, écrite plus court."},
+  entre:{t:"Les variables entre elles", b:"<code>y = x</code> copie la valeur de x dans y (x garde sa valeur) · <code>x = y + 1</code> calcule à partir d'une autre variable · <code>z = x + y</code> combine deux variables."},
+  multdiv:{t:"* et /", b:"<code>y = x * 2</code> range le double de x · <code>y = x / 2</code> la moitié."},
+  piste:{t:"La piste", b:"La valeur du secteur dicte le saut : lis, déplace-toi d'autant, recommence."},
+  boucle:{t:"La zone qui boucle", b:"Les bords en <b>pointillés</b> : sortir d'un côté fait rentrer de l'autre. Avancer de 6 sur 4 colonnes = un tour complet, plus 2."},
+  exprarg:{t:"Le calcul en argument", b:"Un argument peut être un <b>calcul</b> : <code>avancer(x + 1)</code>, <code>ecrire(x + y)</code>. Et <code>lire()</code> peut servir directement : <code>avancer(lire())</code>."},
+  chaine:{t:"La chaîne de caractères", b:"Un mot entre guillemets, <code>\"sel\"</code>, est une valeur comme un nombre : une <b>chaîne de caractères</b>. On peut la lire, la ranger dans une variable, l'écrire (lettre par lettre)."},
+  concat:{t:"Coller : +", b:"<code>\"so\" + \"le\"</code> → <code>\"sole\"</code>. Le + colle deux chaînes ; l'ordre compte."},
+  si:{t:"La condition : if", b:"<code>if condition:</code> → VRAIE = on entre dans le bloc (les lignes décalées) ; FAUSSE = on le saute. <code>x == 0</code> compare (égal ?), pas comme <code>=</code> qui affecte. Pas de touche spéciale : juge, puis <b>exécute la bonne ligne suivante</b>."},
+  sinon:{t:"Le sinon : else", b:"<code>else:</code> veut dire sinon. Si le if est FAUX, on exécute le bloc else à la place. La ligne <code>else:</code> elle-même ne s'exécute pas."},
+  difference:{t:"Différent : !=", b:"<code>!=</code> demande si c'est différent. <code>x != 0</code> : x est-il différent de 0 ?"},
+  couleur:{t:"couleur() et les mots-valeurs", b:"<code>couleur()</code> <b>renvoie</b> la couleur du secteur sous la sonde, un mot entre guillemets : <code>\"rouge\"</code>. Les guillemets délimitent une chaîne, et on la compare comme un nombre : <code>couleur() == \"rouge\"</code>."},
+  tantque:{t:"La boucle : while", b:"<code>while condition:</code> répète le bloc tant que c'est vrai. À CHAQUE retour sur la ligne while, re-juge : exécute le bloc si c'est encore vrai… la suite quand c'est fini."},
+  pour:{t:"La boucle : for", b:"<code>for i in range(3):</code> répète le bloc exactement 3 fois. <code>range(3)</code> = la liste des tours 0, 1, 2 ; la machine les compte dans la variable <code>i</code>. À toi de compter aussi."},
+};
+const unlocked = [];
+function unlock(ids){ const fresh=[]; for(const id of (ids||[])) if(!unlocked.includes(id)){unlocked.push(id); fresh.push(id);} return fresh; }
+
+/* ================= briques de programme =================
+   Déplacements = flèches · ecrire = TAPER le chiffre ·
+   rangements/calculs (x = 2, x += 1…) = AUCUNE touche : la machine les exécute toute seule ·
+   if/while/for = pas de touche : on exécute directement la bonne ligne suivante. */
+const DIRS={avancer:[0,1],reculer:[0,-1],monter:[-1,0],descendre:[1,0]};
+const KEYOF={avancer:'ArrowRight',reculer:'ArrowLeft',monter:'ArrowUp',descendre:'ArrowDown'};
+const ARROW={ArrowRight:'→',ArrowLeft:'←',ArrowUp:'↑',ArrowDown:'↓'};
+function mv(name,n,py,hint){ py = py || (n>1? name+'('+n+')' : name+'()');
+  return {k:'call', name, n:n||1, py, hint, hideN:/\([a-z]/.test(py)}; }
+const fwd=(n,py,h)=>mv('avancer',n,py,h), bwd=(n,py,h)=>mv('reculer',n,py,h),
+      up =(n,py,h)=>mv('monter',n,py,h),  dwn=(n,py,h)=>mv('descendre',n,py,h);
+/* chipFn appelé APRÈS apply. Toute affectation/calcul CHIPE sa valeur résultante par défaut :
+   la machine MONTRE ce qu'elle fait, condition de la déduction sans carton (protocole S3) */
+function stm(py, apply, chipFn){
+  if(!chipFn){ const m=py.match(/^[a-z]+/); if(m){ const nm=m[0]; chipFn=s=>nm+' = '+fmt(s.vars[nm]); } }
+  return {k:'stm', py, apply, chipFn};
+}
+function wr(py, val, hint){ return {k:'write', py, val, hint}; }                  /* le joueur TAPE la valeur */
+function iff(condPy, cond, body, valText, elseBody){ return {k:'iff', py:'if '+condPy+':', cond, body, elseBody, condPy, valText}; }
+function wh (condPy, cond, body, valText){ return {k:'wh',  py:'while '+condPy+':', cond, body, condPy, valText}; }
+function forr(n, body, teach){ return {k:'for', n, teach:!!teach, py:'for i in range('+n+'):', body}; }
+
+/* affectations usuelles (raccourcis d'écriture des niveaux) */
+const fmt =(v)=> typeof v==='string' ? '"'+v+'"' : v;
+const set =(name,v)=>stm(name+' = '+v, s=>{s.vars[name]=v;}, s=>name+' = '+v);
+const setl=(name,w)=>stm(name+' = "'+w+'"', s=>{s.vars[name]=w;}, s=>name+' = "'+w+'"');
+const read=(name)=>stm(name+' = lire()', s=>{s.vars[name]=V(s);}, s=>name+' = '+fmt(s.vars[name]));
+const wrv =(name)=>wr('ecrire('+name+')', s=>s.vars[name], s=>name+' contient '+fmt(s.vars[name])+' → tape '+s.vars[name]);
+const wrn =(v)=>wr('ecrire('+v+')', s=>v, 'la ligne dit ecrire('+v+') → tape '+v);
+
+function compile(nodes){
+  const instrs=[], lines=[];
+  function walk(list, indent){
+    for(const nd of list){
+      if(nd.k==='call'){ const ii=instrs.push({type:'call',name:nd.name,n:nd.n,hint:nd.hint,py:nd.py,hideN:nd.hideN})-1; lines.push({text:nd.py,indent,ii}); }
+      else if(nd.k==='stm'){ const ii=instrs.push({type:'stmt',apply:nd.apply,chipFn:nd.chipFn,py:nd.py})-1; lines.push({text:nd.py,indent,ii}); }
+      else if(nd.k==='write'){ const ii=instrs.push({type:'write',val:nd.val,hint:nd.hint,py:nd.py})-1; lines.push({text:nd.py,indent,ii}); }
+      else if(nd.k==='for'){
+        const br={type:'branch',loop:true,condPy:nd.py,elseTarget:-1};
+        const ii=instrs.push(br)-1; lines.push({text:nd.py,indent,ii});
+        br.cond=s=>((s.forC[ii]||0) < nd.n);
+        br.valText=s=>'tours faits : '+(s.forC[ii]||0)+'/'+nd.n;
+        br.onTake=(s,sim)=>{ const k=s.forC[ii]||0; s.vars.i=k; s.forC[ii]=k+1; if(!sim&&nd.teach) chip('i = '+k); };
+        walk(nd.body, indent+1);
+        instrs.push({type:'jump',target:ii});
+        br.elseTarget=instrs.length;
+      }
+      else{
+        const br={type:'branch',cond:nd.cond,condPy:nd.condPy,valText:nd.valText,loop:nd.k==='wh',elseTarget:-1};
+        const ii=instrs.push(br)-1; lines.push({text:nd.py,indent,ii});
+        walk(nd.body, indent+1);
+        if(nd.k==='wh'){ instrs.push({type:'jump',target:ii}); br.elseTarget=instrs.length; }
+        else if(nd.elseBody){
+          const jOver={type:'jump',target:-1}; instrs.push(jOver);
+          br.elseTarget=instrs.length;
+          lines.push({text:'else:',indent,ii:-1});
+          walk(nd.elseBody, indent+1);
+          jOver.target=instrs.length;
+        }
+        else br.elseTarget=instrs.length;
+      }
+    }
+  }
+  walk(nodes,0);
+  instrs.push({type:'end'});
+  return {instrs,lines};
+}
+
+/* ============ helpers d'état ============ */
+const V=(s)=>s.cells[s.r][s.c].v, COL=(s)=>s.cells[s.r][s.c].col||'gris';
+const setV=(s,v)=>{s.cells[s.r][s.c].v=v;};
+
+/* ================= LES 65 NIVEAUX, 6 BLOCS =================
+   showValues : les valeurs des cases s'affichent (dès lire, bloc 2)
+   showVars   : le PANNEAU DES BOÎTES est affiché (échafaudage, à chaque famille nouvelle, puis fading) */
+/* noms des blocs : usage interne (design) uniquement, jamais affichés au joueur */
+const BLOCS=['Se déplacer, retenir','Lire, écrire, calculer','Les variables entre elles','Les mots','La salle des machines','LE BOSS'];
+const LEVELS = [
+/* ============ BLOC 1, se déplacer, retenir (1-15) ============ */
+{ bloc:1, title:"Le processeur, c'est toi",
+  tuto:[
+    {say:"Cette machine est <b>morte</b>. Son processeur ne tourne plus. Pour en extraire quoi que ce soit, une seule solution : exécuter ses programmes <b>à la main</b>. Le processeur… c'est toi."},
+    {say:"Ce que vous voyez ici est un <b>programme informatique</b>.", spot:['prog']},
+    {say:"Un programme informatique en <b>Python</b>, c'est une liste d'<b>instructions</b>. Pour l'instant, la machine les exécute de haut en bas, ligne par ligne.", spot:['prog']},
+    {say:"La première instruction est donc la <b>fonction</b> <code>avancer()</code>.", spot:['prog'], line:0},
+    {key:'ArrowRight', say:"Commence par appuyer sur la touche <b>→</b> de ton clavier.", spot:['prog','grid'], line:0},
+    {key:'ArrowRight', say:"Le programme en est maintenant à la <b>deuxième ligne</b> : il nous demande la même instruction. Appuie de nouveau sur <b>→</b>.", spot:['prog','grid'], line:1},
+    {say:"Bravo, tu as bien exécuté le programme. À toi de jouer maintenant !", advance:true}],
+  notes:['programme','ordre'],
+  cells:[[0,0,0],[0,0,0]], start:[0,0], target:[0,2],
+  prog:[ fwd(), fwd() ],
+  win:s=>s.r===0&&s.c===2 },
+
+{ bloc:1, title:"Ligne par ligne",
+  cells:[[0,0,0,0],[0,0,0,0]], start:[0,0], target:[0,3],
+  prog:[ fwd(), fwd(), fwd() ],
+  win:s=>s.r===0&&s.c===3 },
+
+{ bloc:1, title:"Marche arrière", guide:true,
+  tuto:[
+    {say:"Le programme contient maintenant la fonction <code>reculer()</code> : elle s'exécute avec la touche <b>←</b> de ton clavier. N'oublie pas d'exécuter le programme en commençant par la ligne du haut.", spot:['prog'], line:2}],
+  cells:[[0,0,0,0]], start:[0,1], target:[0,2],
+  prog:[ fwd(), fwd(), bwd() ],
+  win:s=>s.r===0&&s.c===2 },
+
+{ bloc:1, title:"À la lettre", guide:true,
+  tuto:[
+    {say:"Le programme contient maintenant les fonctions <code>monter()</code> et <code>descendre()</code>, s'activant avec les touches <b>↑</b> et <b>↓</b> de ton clavier.", spot:['prog'], line:[1,3]}],
+  cells:[[0,0,0],[0,0,0],[0,0,0]], start:[1,0], target:[1,2],
+  prog:[ fwd(), dwn(), fwd(), up() ],
+  win:s=>s.r===1&&s.c===2 },
+
+{ bloc:1, title:"Le grand tour",
+  tuto:[
+    {say:"À chaque nouvelle instruction apprise, tout sera noté dans le <b>pense-bête</b>. Appuie sur la touche <b>P</b> pour l'ouvrir.", key:'p', do:'pb'},
+    {key:'p', do:'pb', say:"Si tu bloques sur un programme, n'hésite pas à te servir du pense-bête. Réappuie sur <b>P</b> pour le fermer.", pos:'bottom', nodim:true}],
+  cells:[[0,0,0,0],[0,0,0,0],[0,0,0,0]], start:[1,0], target:[0,3],
+  prog:[ dwn(), fwd(), fwd(), up(), fwd(), up() ],
+  win:s=>s.r===0&&s.c===3 },
+
+{ bloc:1, title:"L'argument",
+  tuto:[
+    {say:"Une <b>fonction</b> peut recevoir un nombre entre parenthèses. Ce nombre s'appelle un <b>argument</b>.", spot:['prog'], line:0},
+    {key:'ArrowRight', say:"Appuie sur <b>→</b> trois fois pour exécuter <code>avancer(3)</code>.", spot:['prog','grid'], line:0},
+    {key:'ArrowDown', say:"Appuie sur <b>↓</b> une fois pour exécuter <code>descendre(1)</code>.", spot:['prog','grid'], line:1, advance:true}],
+  notes:['argument'],
+  cells:[[0,0,0,0],[0,0,0,0]], start:[0,0], target:[1,3],
+  prog:[ fwd(3), dwn(1,'descendre(1)') ],
+  win:s=>s.r===1&&s.c===3 },
+
+{ bloc:1, title:"Le trajet chiffré",
+  cells:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]], start:[0,0], target:[1,4],
+  prog:[ fwd(1,'avancer(1)'), dwn(2,'descendre(2)'), fwd(2), up(1,'monter(1)'), fwd(1,'avancer(1)') ],
+  win:s=>s.r===1&&s.c===4 },
+
+{ bloc:1, title:"La boîte",
+  tuto:[
+    {say:"Une <b>variable</b>, c'est une boîte qui contient une <b>valeur</b>. <code>x = 2</code> range la valeur 2 dans la boîte x : c'est une <b>affectation</b>, pas une égalité.", spot:['prog'], line:0},
+    {say:"<code>x = 2</code> vient de s'exécuter tout seul : tu commences donc à agir avec ton clavier à partir de <code>avancer(x)</code>.", spot:['prog'], line:1},
+    {key:'ArrowRight', say:"Pour exécuter <code>avancer(x)</code>, appuie sur la touche <b>→</b> x fois.", spot:['prog','grid'], line:1, advance:true}],
+  notes:['variable'],
+  cells:[[0,0,0],[0,0,0],[0,0,0]], start:[0,0], target:[0,2],
+  prog:[ set('x',2),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →') ],
+  win:s=>s.r===0&&s.c===2 },
+
+{ bloc:1, title:"La boîte réutilisée",
+  cells:[[0,0,0],[0,0,0],[0,0,0]], start:[0,0], target:[0,2],
+  prog:[ set('x',2),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         up(2,'monter(x)', s=>'x contient 2 → 2 pressions de ↑') ],
+  win:s=>s.r===0&&s.c===2 },
+
+{ bloc:1, title:"Deux boîtes",
+  dialogue:["Il peut y avoir <b>plusieurs</b> variables. Ce programme en contient une nouvelle, nommée <code>y</code>."],
+  cells:[[0,0,0,0],[0,0,0,0],[0,0,0,0]], start:[0,0], target:[2,0],
+  prog:[ set('x',2), set('y',1),
+         fwd(1,'avancer(y)', s=>'y contient 1 → 1 pression de →'),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         bwd(1,'reculer(y)', s=>'y contient 1 → 1 pression de ←') ],
+  win:s=>s.r===2&&s.c===0 },
+
+{ bloc:1, title:"Boîtes et nombres mêlés",
+  cells:[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], start:[0,0], target:[1,1],
+  prog:[ set('x',2), set('y',1), set('z',3),
+         fwd(3,'avancer(z)', s=>'z contient 3 → 3 pressions de →'),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         bwd(1),
+         dwn(1,'descendre(1)'),
+         bwd(1,'reculer(y)', s=>'y contient 1 → 1 pression de ←'),
+         up(2,'monter(x)', s=>'x contient 2 → 2 pressions de ↑') ],
+  win:s=>s.r===1&&s.c===1 },
+
+{ bloc:1, title:"La boîte réécrite",
+  tuto:[
+    {say:"Une variable peut être <b>réaffectée</b> : la nouvelle valeur <b>remplace</b> l'ancienne.", spot:['prog'], line:[0,2]},
+    {key:'ArrowRight', say:"Au début la variable x contient 2. Exécute <code>avancer(x)</code> en appuyant deux fois sur la touche <b>→</b>.", spot:['prog','grid'], line:1},
+    {say:"En passant sur la ligne <code>x = 3</code>, la machine vient de <b>remplacer</b> le 2 par un 3 dans la variable x.", spot:['prog'], line:2},
+    {key:'ArrowLeft', say:"x contient désormais 3. Exécute <code>reculer(x)</code> en appuyant trois fois sur la touche <b>←</b>.", spot:['prog','grid'], line:3, advance:true}],
+  cells:[[0,0,0,0]], start:[0,1], target:[0,0],
+  prog:[ set('x',2),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         set('x',3),
+         bwd(3,'reculer(x)', s=>'x contient 3 → 3 pressions de ←') ],
+  win:s=>s.r===0&&s.c===0 },
+
+{ bloc:1, title:"La mémoire longue", wrap:true, notes:['boucle'],
+  lecon:["Cette zone <b>boucle</b> (bords en pointillés) : sortir en bas fait revenir en haut. <code>descendre(18)</code> sur 3 lignes = six tours complets."],
+  cells:[[0,0,0,0],[0,0,0,0],[0,0,0,0]], start:[0,0], target:[1,1],
+  prog:[ set('x',1), set('y',3), set('z',2),
+         fwd(3,'avancer(y)', s=>'y contient 3 → 3 pressions de →'),
+         bwd(1),
+         dwn(2,'descendre(z)', s=>'z contient 2 → 2 pressions de ↓'),
+         bwd(1,'reculer(x)', s=>'x contient 1 → 1 pression de ←'),
+         dwn(18),
+         set('z',1),
+         up(1,'monter(z)', s=>'z contient 1 → 1 pression de ↑') ],
+  win:s=>s.r===1&&s.c===1 },
+
+{ bloc:1, title:"Le messager (BOSS du bloc 1)",
+  cells:[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], start:[3,0], target:[5,3],
+  prog:[ set('x',2),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         set('y',1), set('z',5),
+         bwd(1,'reculer(y)', s=>'y contient 1 → 1 pression de ←'),
+         up(1),
+         dwn(1,'descendre(y)', s=>'y contient 1 → 1 pression de ↓'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         up(5,'monter(z)', s=>'z contient 5 → 5 pressions de ↑'),
+         set('x',3),
+         dwn(2),
+         dwn(1,'descendre(1)'),
+         set('y',2),
+         dwn(3,'descendre(x)', s=>'x contient 3 → 3 pressions de ↓'),
+         up(1) ],
+  win:s=>s.r===5&&s.c===3 },
+
+/* ============ BLOC 2, lire, écrire, calculer (16-30) ============ */
+{ bloc:2, title:"Rappel : le coursier",
+  lecon:["À partir de maintenant, les lignes du programme ne sont <b>plus surlignées</b>. À toi de savoir où tu en es."],
+  cells:[[0,0,0],[0,0,0]], start:[0,0], target:[1,0],
+  prog:[ set('x',2),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         dwn(1,'descendre(1)'),
+         bwd(2,'reculer(x)', s=>'x contient 2 → 2 pressions de ←') ],
+  win:s=>s.r===1&&s.c===0 },
+
+{ bloc:2, title:"Rappel : deux boîtes",
+  cells:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]], start:[0,0], target:[2,2],
+  prog:[ set('x',3), set('y',1),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         dwn(1,'descendre(y)', s=>'y contient 1 → 1 pression de ↓'),
+         set('x',2),
+         bwd(2,'reculer(x)', s=>'x contient 2 → 2 pressions de ←'),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         fwd(1,'avancer(1)'),
+         up(1,'monter(y)', s=>'y contient 1 → 1 pression de ↑'),
+         set('y',2),
+         fwd(2,'avancer(y)', s=>'y contient 2 → 2 pressions de →'),
+         up(2),
+         bwd(1),
+         dwn(2,'descendre(y)', s=>'y contient 2 → 2 pressions de ↓'),
+         set('x',1),
+         bwd(1,'reculer(x)', s=>'x contient 1 → 1 pression de ←') ],
+  win:s=>s.r===2&&s.c===2 },
+
+{ bloc:2, title:"Lire",
+  lecon:["Les secteurs contiennent désormais des <b>valeurs</b>.",
+    "<code>lire()</code> <b>renvoie</b> la valeur écrite dans le secteur où tu es positionné : <code>x = lire()</code> la range dans la variable x.",
+    "Pour t'aider au début, <b>les variables restent affichées sous la grille</b>."],
+  notes:['lire'], showValues:true, showVars:true,
+  cells:[[3,2,0,4],[0,0,0,0]], start:[0,0], target:[0,3],
+  prog:[ read('x'),
+         fwd(3,'avancer(x)', s=>'x contient 3 (la valeur lue) → 3 pressions de →') ],
+  win:s=>s.r===0&&s.c===3 },
+
+{ bloc:2, title:"Lire pour tourner",
+  showValues:true, showVars:true,
+  cells:[[2,7,4,1],[5,0,8,2],[3,1,6,0],[9,4,2,5]], start:[0,0], target:[2,3],
+  prog:[ read('x'),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         read('y'),
+         fwd(3,'avancer(y)', s=>'y contient 3 → 3 pressions de →') ],
+  win:s=>s.r===2&&s.c===3 },
+
+{ bloc:2, title:"La navette",
+  showValues:true, showVars:true,
+  cells:[[3,0,0,0],[0,0,0,1]], start:[0,0], target:[0,3],
+  prog:[ read('x'),
+         dwn(1,'descendre(1)'),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         read('y'),
+         up(1,'monter(y)', s=>'y contient 1 → 1 pression de ↑') ],
+  win:s=>s.r===0&&s.c===3 },
+
+{ bloc:2, title:"Deux lectures",
+  showValues:true, showVars:true,
+  cells:[[5,2,0,1,0],[0,0,0,0,0]], start:[0,0], target:[1,1],
+  prog:[ fwd(1,'avancer(1)'),
+         read('x'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         read('y'),
+         dwn(1,'descendre(y)', s=>'y contient 1 → 1 pression de ↓'),
+         bwd(2,'reculer(x)', s=>'x contient 2 → 2 pressions de ←') ],
+  win:s=>s.r===1&&s.c===1 },
+
+{ bloc:2, title:"Écrire",
+  tuto:[
+    {say:"<code>ecrire(…)</code> grave une valeur dans le secteur où tu es positionné. C'est <b>toi qui dois la taper</b> au clavier.", spot:['prog']},
+    {say:"<code>x = lire()</code> s'est exécutée toute seule : x contient 4.", spot:['grid','prog'], probe:true, line:0},
+    {key:'ArrowRight', say:"<code>avancer()</code> : une pression de <b>→</b>.", spot:['grid','prog'], line:1},
+    {key:'4', say:"<code>ecrire(x)</code> : x contient 4 → tape <b>4</b>.", spot:['grid','prog'], probe:true, line:2},
+    {key:'ArrowRight', say:"Encore un pas : <b>→</b>.", spot:['grid','prog'], line:3},
+    {say:"Le code peut aussi donner la valeur <b>en dur</b> : <code>ecrire(7)</code>, tape ce que la ligne dit.", spot:['prog'], line:4},
+    {key:'7', say:"Tape <b>7</b>.", spot:['grid','prog'], probe:true, line:4, advance:true}],
+  notes:['ecrire'], showValues:true, showVars:true,
+  cells:[[4,0,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(1),
+         wrv('x'),
+         fwd(1),
+         wrn(7) ],
+  win:s=>s.cells[0][1].v===4&&s.cells[0][2].v===7 },
+
+{ bloc:2, title:"Le transport",
+  showValues:true, showVars:true,
+  cells:[[2,0,0,3],[0,0,0,0],[0,0,0,0],[0,0,7,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         set('y',1),
+         fwd(1,'avancer(y)', s=>'y contient 1 → 1 pression de →'),
+         read('z'),
+         dwn(3,'descendre(z)', s=>'z contient 3 → 3 pressions de ↓'),
+         bwd(1,'reculer(y)', s=>'y contient 1 → 1 pression de ←'),
+         read('x'),
+         wrv('z'),
+         bwd(2),
+         wrv('x'),
+         up(1,'monter(y)', s=>'y contient 1 → 1 pression de ↑'),
+         set('y',2),
+         up(2,'monter(y)', s=>'y contient 2 → 2 pressions de ↑'),
+         wrv('z') ],
+  win:s=>s.cells[3][2].v===3&&s.cells[3][0].v===7&&s.cells[0][0].v===3 },
+
+{ bloc:2, title:"Sans filet",
+  lecon:["Le panneau des variables <b>s'éteint</b> : tu dois maintenant retenir les valeurs de tête."],
+  showValues:true,
+  cells:[[2,0,7,0]], start:[0,0], target:[0,2],
+  prog:[ read('x'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         read('y'),
+         wrv('x') ],
+  win:s=>s.cells[0][2].v===2 },
+
+{ bloc:2, title:"De tête",
+  showValues:true,
+  cells:[[4,0,0],[0,0,0]], start:[0,0],
+  prog:[ read('x'),
+         dwn(1,'descendre(1)'),
+         wrv('x'),
+         fwd(2),
+         up(1,'monter(1)'),
+         wrv('x') ],
+  win:s=>s.cells[1][0].v===4&&s.cells[0][2].v===4 },
+
+{ bloc:2, title:"Le calcul",
+  lecon:["Tu verras désormais des lignes comme <code>x = x + 1</code> : la machine calcule la valeur à droite du signe =, puis la range dans la variable à gauche. <code>x = x + 1</code> augmente donc x de 1."],
+  notes:['calcul'], showValues:true,
+  cells:[[4,2,9]], start:[0,0], target:[0,0],
+  prog:[ read('x'),
+         stm('x = x + 1', s=>{s.vars.x+=1;}),
+         wrv('x') ],
+  win:s=>s.cells[0][0].v===5 },
+
+{ bloc:2, title:"Le convoyeur",
+  showValues:true,
+  cells:[[2,0,3,0]], start:[0,0], target:[0,3],
+  prog:[ read('x'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         read('x'),
+         stm('x = x + 1', s=>{s.vars.x+=1;}),
+         fwd(1,'avancer(1)'),
+         wrv('x') ],
+  win:s=>s.cells[0][3].v===4 },
+
+{ bloc:2, title:"Plus court : += et -=", guide:true,
+  lecon:["Raccourci : <code>x += 3</code> veut dire <code>x = x + 3</code>. De même, <code>y -= 2</code> retire 2 à y."],
+  notes:['raccourci'], showValues:true,
+  cells:[[4,1],[8,6]], start:[0,0],
+  prog:[ read('x'),
+         stm('x += 3', s=>{s.vars.x+=3;}),
+         wrv('x'),
+         dwn(1,'descendre(1)'),
+         read('y'),
+         stm('y -= 2', s=>{s.vars.y-=2;}),
+         wrv('y') ],
+  win:s=>s.cells[0][0].v===7&&s.cells[1][0].v===6 },
+
+{ bloc:2, title:"Le comptable (BOSS du bloc 2)",
+  showValues:true,
+  cells:[[2,0,1],[0,0,0],[0,0,0],[0,0,0],[0,0,6]], start:[0,0],
+  prog:[ read('x'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         read('x'),
+         stm('x += 3', s=>{s.vars.x+=3;}),
+         dwn(4,'descendre(x)', s=>'x contient 4 → 4 pressions de ↓'),
+         read('x'),
+         stm('x -= 1', s=>{s.vars.x-=1;}),
+         bwd(2,'reculer(2)'),
+         wrv('x') ],
+  win:s=>s.cells[4][0].v===5 },
+
+{ bloc:2, title:"La grande tournée",
+  showValues:true,
+  cells:[[3,0,0,4,0],[0,0,0,0,0],[0,6,0,0,0],[0,0,2,0,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         read('y'),
+         stm('y -= 2', s=>{s.vars.y-=2;}),
+         dwn(2,'descendre(y)', s=>'y contient 2 → 2 pressions de ↓'),
+         bwd(2),
+         read('x'),
+         stm('x -= 4', s=>{s.vars.x-=4;}),
+         dwn(1,'descendre(1)'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         wrv('x'),
+         set('z',1),
+         up(1,'monter(z)', s=>'z contient 1 → 1 pression de ↑'),
+         bwd(2,'reculer(y)', s=>'y contient 2 → 2 pressions de ←'),
+         stm('x += 1', s=>{s.vars.x+=1;}),
+         up(2),
+         wrv('x'),
+         bwd(1,'reculer(z)', s=>'z contient 1 → 1 pression de ←'),
+         wrv('y') ],
+  win:s=>s.cells[3][3].v===2&&s.cells[0][1].v===3&&s.cells[0][0].v===2 },
+
+{ bloc:2, title:"L'inventaire",
+  showValues:true,
+  cells:[[2,0,4,0,0],[0,0,0,0,9],[0,0,0,0,0],[0,3,0,0,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         read('y'),
+         stm('y -= 1', s=>{s.vars.y-=1;}),
+         dwn(3,'descendre(y)', s=>'y contient 3 → 3 pressions de ↓'),
+         bwd(1,'reculer(1)'),
+         read('z'),
+         wrv('x'),
+         up(3,'monter(z)', s=>'z contient 3 → 3 pressions de ↑'),
+         set('x',3),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         dwn(1,'descendre(1)'),
+         read('z'),
+         stm('z -= 5', s=>{s.vars.z-=5;}),
+         bwd(4,'reculer(z)', s=>'z contient 4 → 4 pressions de ←'),
+         dwn(2,'descendre(2)'),
+         stm('y += 1', s=>{s.vars.y+=1;}),
+         wrv('y'),
+         up(3,'monter(x)', s=>'x contient 3 → 3 pressions de ↑'),
+         wrv('z') ],
+  win:s=>s.cells[3][1].v===2&&s.cells[3][0].v===4&&s.cells[0][0].v===4 },
+
+/* ============ BLOC 3, les boîtes entre elles (31-40) ============ */
+{ bloc:3, title:"Rappel : la réparation",
+  showValues:true,
+  cells:[[3,0]], start:[0,0],
+  prog:[ read('x'),
+         stm('x += 1', s=>{s.vars.x+=1;}),
+         wrv('x'),
+         fwd(1,'avancer(1)') ],
+  win:s=>s.cells[0][0].v===4&&s.c===1 },
+
+{ bloc:3, title:"La copie", guide:true,
+  lecon:["Une variable peut se ranger <b>dans une autre</b> : <code>y = x</code> copie la valeur de x dans y (x garde sa valeur).",
+    "Et <code>x = y + 1</code> calcule <b>à partir d'une autre variable</b>. Le panneau revient pour ces nouveaux gestes, un temps."],
+  notes:['entre'], showValues:true, showVars:true,
+  cells:[[5,0,0]], start:[0,0], target:[0,2],
+  prog:[ read('x'),
+         stm('y = x', s=>{s.vars.y=s.vars.x;}),
+         fwd(2),
+         wrv('y') ],
+  win:s=>s.cells[0][2].v===5 },
+
+{ bloc:3, title:"Le voisin",
+  showValues:true, showVars:true,
+  cells:[[2,0,0,0],[0,0,0,0]], start:[0,0], target:[1,3],
+  prog:[ read('y'),
+         stm('x = y + 1', s=>{s.vars.x=s.vars.y+1;}),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         dwn(1,'descendre(1)'),
+         wrv('y') ],
+  win:s=>s.cells[1][3].v===2 },
+
+{ bloc:3, title:"La combinaison",
+  showValues:true, showVars:true,
+  cells:[[1,0,3,0],[0,0,0,0]], start:[0,0], target:[1,2],
+  prog:[ read('x'),
+         fwd(2),
+         read('y'),
+         stm('z = x + y', s=>{s.vars.z=s.vars.x+s.vars.y;}),
+         dwn(1,'descendre(1)'),
+         wrv('z') ],
+  win:s=>s.cells[1][2].v===4 },
+
+{ bloc:3, title:"Sans le panneau",
+  lecon:["Le panneau s'éteint à nouveau, les variables liées aussi, c'est <b>de tête</b>."],
+  showValues:true,
+  cells:[[3,0,0,0],[0,0,0,0]], start:[0,0], target:[1,3],
+  prog:[ read('x'),
+         stm('y = x - 2', s=>{s.vars.y=s.vars.x-2;}),
+         dwn(1,'descendre(y)', s=>'y contient 1 → 1 pression de ↓'),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         wrv('y') ],
+  win:s=>s.cells[1][3].v===1 },
+
+{ bloc:3, title:"Multiplier", guide:true,
+  lecon:["<code>*</code> multiplie, <code>/</code> divise : <code>y = x * 2</code> range le <b>double</b> de x dans y ; <code>y = x / 2</code> la moitié."],
+  notes:['multdiv'], showValues:true,
+  cells:[[3,0,0]], start:[0,0], target:[0,2],
+  prog:[ read('x'),
+         stm('y = x * 2', s=>{s.vars.y=s.vars.x*2;}),
+         fwd(2),
+         wrv('y') ],
+  win:s=>s.cells[0][2].v===6 },
+
+{ bloc:3, title:"Diviser",
+  showValues:true,
+  cells:[[8,0,0,0,0],[0,0,0,0,0]], start:[0,0], target:[1,4],
+  prog:[ read('x'),
+         stm('y = x / 2', s=>{s.vars.y=s.vars.x/2;}),
+         fwd(4,'avancer(y)', s=>'y contient 4 → 4 pressions de →'),
+         dwn(1,'descendre(1)'),
+         wrv('x') ],
+  win:s=>s.cells[1][4].v===8 },
+
+{ bloc:3, title:"L'aiguillage",
+  showValues:true,
+  cells:[[2,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]], start:[0,0], target:[2,4],
+  prog:[ read('x'),
+         stm('y = x * 2', s=>{s.vars.y=s.vars.x*2;}),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         fwd(4,'avancer(y)', s=>'y contient 4 → 4 pressions de →'),
+         bwd(1,'reculer(1)'),
+         stm('z = x + y', s=>{s.vars.z=s.vars.x+s.vars.y;}),
+         wrv('z') ],
+  win:s=>s.cells[2][3].v===6 },
+
+{ bloc:3, title:"Le relais",
+  showValues:true,
+  cells:[[1,2,0,0,0,0],[0,0,0,0,0,0]], start:[0,0], target:[1,3],
+  prog:[ read('x'),
+         fwd(1,'avancer(x)', s=>'x contient 1 → 1 pression de →'),
+         read('y'),
+         stm('z = x + y', s=>{s.vars.z=s.vars.x+s.vars.y;}),
+         dwn(1,'descendre(1)'),
+         fwd(3,'avancer(z)', s=>'z contient 3 → 3 pressions de →'),
+         stm('z = z * 2', s=>{s.vars.z=s.vars.z*2;}),
+         bwd(1,'reculer(x)', s=>'x contient 1 → 1 pression de ←'),
+         wrv('z') ],
+  win:s=>s.cells[1][3].v===6 },
+
+{ bloc:3, title:"Le mélangeur (BOSS du bloc 3, 1/2)",
+  showValues:true,
+  cells:[[2,0,6,0,0],[0,0,0,0,3],[0,0,0,0,0],[0,4,0,0,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         read('y'),
+         stm('y = y / 2', s=>{s.vars.y=s.vars.y/2;}),
+         dwn(3,'descendre(y)', s=>'y contient 3 → 3 pressions de ↓'),
+         bwd(1,'reculer(1)'),
+         read('z'),
+         stm('z = z - x', s=>{s.vars.z=s.vars.z-s.vars.x;}),
+         wrv('y'),
+         up(2,'monter(z)', s=>'z contient 2 → 2 pressions de ↑'),
+         fwd(3,'avancer(y)', s=>'y contient 3 → 3 pressions de →'),
+         read('x'),
+         stm('x += 2', s=>{s.vars.x+=2;}),
+         bwd(2,'reculer(z)', s=>'z contient 2 → 2 pressions de ←'),
+         stm('x -= 4', s=>{s.vars.x-=4;}),
+         dwn(1,'descendre(x)', s=>'x contient 1 → 1 pression de ↓'),
+         stm('w = y * 2', s=>{s.vars.w=s.vars.y*2;}),
+         wrv('w'),
+         bwd(2),
+         wrv('x') ],
+  win:s=>s.cells[3][1].v===3&&s.cells[2][2].v===6&&s.cells[2][0].v===1 },
+
+{ bloc:3, title:"La forge (BOSS du bloc 3, 2/2)",
+  showValues:true,
+  cells:[[3,0,0,8,0],[0,0,2,0,0],[0,5,0,0,0],[0,0,0,0,0],[0,0,0,0,0]], start:[0,0],
+  prog:[ read('x'),
+         stm('y = x - 2', s=>{s.vars.y=s.vars.x-2;}),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         read('z'),
+         stm('z = z / 2', s=>{s.vars.z=s.vars.z/2;}),
+         dwn(1,'descendre(y)', s=>'y contient 1 → 1 pression de ↓'),
+         bwd(1,'reculer(y)', s=>'y contient 1 → 1 pression de ←'),
+         read('w'),
+         stm('w = w + z', s=>{s.vars.w=s.vars.w+s.vars.z;}),
+         dwn(1,'descendre(1)'),
+         bwd(1),
+         read('x'),
+         stm('x -= 3', s=>{s.vars.x-=3;}),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         wrv('w'),
+         set('y',3),
+         fwd(3,'avancer(y)', s=>'y contient 3 → 3 pressions de →'),
+         wrn(9),
+         up(4,'monter(z)', s=>'z contient 4 → 4 pressions de ↑'),
+         bwd(2,'reculer(x)', s=>'x contient 2 → 2 pressions de ←'),
+         wrv('z') ],
+  win:s=>s.cells[4][1].v===6&&s.cells[4][4].v===9&&s.cells[0][2].v===4 },
+
+/* ============ BLOC 4, les mots (41-50) ============ */
+{ bloc:4, title:"Rappel : les boîtes",
+  showValues:true,
+  cells:[[4,0,0]], start:[0,0], target:[0,2],
+  prog:[ read('x'),
+         stm('y = x / 2', s=>{s.vars.y=s.vars.x/2;}),
+         fwd(2,'avancer(y)', s=>'y contient 2 → 2 pressions de →'),
+         wrv('x') ],
+  win:s=>s.cells[0][2].v===4 },
+
+{ bloc:4, title:"Les mots", guide:true,
+  lecon:["Les secteurs peuvent contenir des <b>mots</b>. Une variable aussi : <code>x = lire()</code> range le mot. Les guillemets, <code>\"sel\"</code>, délimitent une <b>chaîne de caractères</b>.",
+    "<code>ecrire(x)</code> : tape le mot, <b>lettre par lettre</b>. Le panneau revient le temps d'apprendre."],
+  notes:['chaine'], showValues:true, showVars:true,
+  cells:[["sel","",""]], start:[0,0], target:[0,2],
+  prog:[ read('x'),
+         fwd(2),
+         wrv('x') ],
+  win:s=>s.cells[0][2].v==='sel' },
+
+{ bloc:4, title:"Le mot littéral",
+  showValues:true, showVars:true,
+  cells:[["",""],["",""]], start:[0,0], target:[1,1],
+  prog:[ setl('x','ok'),
+         fwd(1,'avancer(1)'),
+         dwn(1,'descendre(1)'),
+         wrv('x') ],
+  win:s=>s.cells[1][1].v==='ok' },
+
+{ bloc:4, title:"Copier un mot",
+  showValues:true, showVars:true,
+  cells:[["eau",""],["",""]], start:[0,0], target:[1,0],
+  prog:[ read('x'),
+         stm('y = x', s=>{s.vars.y=s.vars.x;}),
+         dwn(1,'descendre(1)'),
+         fwd(1,'avancer(1)'),
+         wrv('y') ],
+  win:s=>s.cells[1][1].v==='eau' },
+
+{ bloc:4, title:"En lettres, sans filet",
+  lecon:["Plus de panneau pour les mots non plus, la lettre à taper, c'est <b>toi</b> qui la portes."],
+  showValues:true,
+  cells:[["sud","",""],[2,0,0]], start:[0,0], target:[1,2],
+  prog:[ read('x'),
+         dwn(1,'descendre(1)'),
+         read('n'),
+         fwd(2,'avancer(n)', s=>'n contient 2 → 2 pressions de →'),
+         wrv('x') ],
+  win:s=>s.cells[1][2].v==='sud' },
+
+{ bloc:4, title:"Coller : la concaténation", guide:true,
+  lecon:["Le <code>+</code> peut aussi <b>coller</b> deux mots l'un derrière l'autre : <code>\"so\" + \"le\"</code> donne le mot <code>\"sole\"</code>. Ça s'appelle la <b>concaténation</b>.",
+    "Fais très attention à l'<b>ORDRE des variables</b> : <code>x + y</code> et <code>y + x</code> ne donnent PAS le même mot."],
+  notes:['concat'], showValues:true,
+  cells:[["so","le",""]], start:[0,0], target:[0,2],
+  prog:[ read('x'),
+         fwd(1,'avancer(1)'),
+         read('y'),
+         stm('z = x + y', s=>{s.vars.z=s.vars.x+s.vars.y;}),
+         fwd(1,'avancer(1)'),
+         wrv('z') ],
+  win:s=>s.cells[0][2].v==='sole' },
+
+{ bloc:4, title:"L'ordre compte",
+  showValues:true,
+  cells:[["nu","me",""]], start:[0,0], target:[0,2],
+  prog:[ read('x'),
+         fwd(1,'avancer(1)'),
+         read('y'),
+         stm('z = y + x', s=>{s.vars.z=s.vars.y+s.vars.x;}),
+         fwd(1,'avancer(1)'),
+         wrv('z') ],
+  win:s=>s.cells[0][2].v==='menu' },
+
+{ bloc:4, title:"Mots et nombres",
+  showValues:true,
+  cells:[["lac",0,0,0],[2,0,0,0]], start:[0,0], target:[0,2],
+  prog:[ read('x'),
+         dwn(1,'descendre(1)'),
+         read('n'),
+         stm('x = x + "s"', s=>{s.vars.x=s.vars.x+'s';}),
+         fwd(2,'avancer(n)', s=>'n contient 2 → 2 pressions de →'),
+         up(1,'monter(1)'),
+         wrv('x') ],
+  win:s=>s.cells[0][2].v==='lacs' },
+
+{ bloc:4, title:"Le scribe (BOSS du bloc 4, 1/2)",
+  showValues:true,
+  cells:[["vo",0,3,0,0],[0,0,0,0,0],[0,0,"ile",0,0],[0,0,0,0,6]], start:[0,0],
+  prog:[ read('x'),
+         fwd(2,'avancer(2)'),
+         read('n'),
+         dwn(2,'descendre(2)'),
+         read('y'),
+         stm('y = x + y', s=>{s.vars.y=s.vars.x+s.vars.y;}),
+         dwn(1,'descendre(1)'),
+         fwd(2,'avancer(2)'),
+         read('z'),
+         stm('z = z / 2', s=>{s.vars.z=s.vars.z/2;}),
+         up(3,'monter(z)', s=>'z contient 3 → 3 pressions de ↑'),
+         wrv('y'),
+         stm('z -= 2', s=>{s.vars.z=s.vars.z-2;}),
+         bwd(3,'reculer(n)', s=>'n contient 3 → 3 pressions de ←'),
+         dwn(1,'descendre(z)', s=>'z contient 1 → 1 pression de ↓'),
+         stm('n = n * 2', s=>{s.vars.n=s.vars.n*2;}),
+         wrv('n'),
+         bwd(1,'reculer(1)'),
+         stm('x = x + "l"', s=>{s.vars.x=s.vars.x+'l';}),
+         wrv('x') ],
+  win:s=>s.cells[0][4].v==='voile'&&s.cells[1][1].v===6&&s.cells[1][0].v==='vol' },
+
+{ bloc:4, title:"L'archiviste (BOSS du bloc 4, 2/2)",
+  showValues:true,
+  cells:[["el",2,"mi",0,0],[0,0,0,0,0],[0,0,0,8,0],[0,0,0,0,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(1,'avancer(1)'),
+         read('n'),
+         fwd(1,'avancer(1)'),
+         read('y'),
+         stm('z = y + x', s=>{s.vars.z=s.vars.y+s.vars.x;}),
+         dwn(2,'descendre(n)', s=>'n contient 2 → 2 pressions de ↓'),
+         fwd(1,'avancer(1)'),
+         read('w'),
+         stm('w = w / 2', s=>{s.vars.w=s.vars.w/2;}),
+         stm('w = w - n', s=>{s.vars.w=s.vars.w-s.vars.n;}),
+         bwd(2,'reculer(w)', s=>'w contient 2 → 2 pressions de ←'),
+         wrv('z'),
+         up(2,'monter(n)', s=>'n contient 2 → 2 pressions de ↑'),
+         read('x'),
+         stm('x += 1', s=>{s.vars.x+=1;}),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         wrn(9),
+         set('n',3),
+         dwn(3,'descendre(n)', s=>'n contient 3 → 3 pressions de ↓'),
+         stm('w = w * 2', s=>{s.vars.w=s.vars.w*2;}),
+         bwd(4,'reculer(w)', s=>'w contient 4 → 4 pressions de ←'),
+         wrv('w') ],
+  win:s=>s.cells[2][1].v==='miel'&&s.cells[0][4].v===9&&s.cells[3][0].v===4 },
+
+/* ============ BLOC 5, la salle des machines (52-64) : fusion des anciens blocs 5+6,
+   deux modificateurs neufs SANS vocabulaire nouveau : zones qui BOUCLENT (wrap, bords en
+   pointillés) et CALCULS EN ARGUMENT (avancer(x + 1), ecrire(x + y), avancer(lire())) ============ */
+{ bloc:5, title:"La zone qui boucle", wrap:true,
+  lecon:["Les bords en <b>pointillés</b> signalent une zone qui <b>boucle</b> : sortir d'un côté fait rentrer de l'autre.",
+    "<code>avancer(6)</code> sur une grille de 4 colonnes = un tour complet (4 pressions)… plus 2."],
+  showValues:true,
+  cells:[[0,0,0,0],[0,0,0,0]], start:[0,1], target:[1,2],
+  prog:[ fwd(6), dwn(3), bwd(1,'reculer(1)') ],
+  win:s=>s.r===1&&s.c===2 },
+
+{ bloc:5, title:"La piste", notes:['piste'],
+  showValues:true,
+  cells:[[2,9,3,9,9,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(2,'avancer(x)', s=>'x contient 2 → 2 pressions de →'),
+         read('y'),
+         fwd(3,'avancer(y)', s=>'y contient 3 → 3 pressions de →'),
+         wrv('x') ],
+  win:s=>s.cells[0][5].v===2 },
+
+{ bloc:5, title:"La piste qui boucle", wrap:true,
+  showValues:true,
+  cells:[[3,0,8,4,0],[0,0,5,0,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         read('y'),
+         fwd(4,'avancer(y)', s=>'y contient 4 → 4 pressions de →'),
+         dwn(1,'descendre(1)'),
+         read('z'),
+         up(5,'monter(z)', s=>'z contient 5 → 5 pressions de ↑'),
+         wrv('y') ],
+  win:s=>s.cells[0][2].v===4 },
+
+{ bloc:5, title:"L'échange",
+  showValues:true,
+  cells:[[3,7]], start:[0,0],
+  prog:[ read('x'),
+         fwd(1,'avancer(1)'),
+         read('y'),
+         wrv('x'),
+         bwd(1,'reculer(1)'),
+         wrv('y') ],
+  win:s=>s.cells[0][0].v===7&&s.cells[0][1].v===3 },
+
+{ bloc:5, title:"Le calcul en marche", notes:['exprarg'],
+  lecon:["L'argument peut être un <b>calcul</b> : <code>avancer(x + 1)</code> = avancer de la valeur de x, plus 1.",
+    "Pareil pour écrire : <code>ecrire(x + 2)</code> = taper la valeur de x, plus 2."],
+  showValues:true,
+  cells:[[2,0,0,0],[0,0,0,0]], start:[0,0], target:[1,1],
+  prog:[ read('x'),
+         fwd(3,'avancer(x + 1)', s=>'x contient 2, x + 1 = 3 → 3 pressions de →'),
+         dwn(1,'descendre(x - 1)', s=>'x contient 2, x - 1 = 1 → 1 pression de ↓'),
+         bwd(2,'reculer(x)', s=>'x contient 2 → 2 pressions de ←'),
+         wr('ecrire(x + 2)', s=>s.vars.x+2, s=>'x + 2 = '+(s.vars.x+2)+' → tape '+(s.vars.x+2)) ],
+  win:s=>s.cells[1][1].v===4 },
+
+{ bloc:5, title:"La rotation",
+  showValues:true,
+  cells:[[4,7,9]], start:[0,0],
+  prog:[ read('x'),
+         fwd(1,'avancer(1)'),
+         read('y'),
+         fwd(1,'avancer(1)'),
+         read('z'),
+         wrv('y'),
+         bwd(1,'reculer(1)'),
+         wrv('x'),
+         bwd(1,'reculer(1)'),
+         wrv('z') ],
+  win:s=>s.cells[0][0].v===9&&s.cells[0][1].v===4&&s.cells[0][2].v===7 },
+
+{ bloc:5, title:"La lecture directe",
+  lecon:["<code>lire()</code> peut servir directement d'<b>argument</b> : <code>avancer(lire())</code> = avancer d'autant que vaut le secteur où tu es."],
+  showValues:true,
+  cells:[[2,0,3,0,0,1],[0,4,0,0,0,4]], start:[0,0], target:[1,1],
+  prog:[ fwd(2,'avancer(lire())', s=>'lire() renvoie 2 → 2 pressions de →'),
+         fwd(3,'avancer(lire())', s=>'lire() renvoie 3 → 3 pressions de →'),
+         dwn(1,'descendre(lire())', s=>'lire() renvoie 1 → 1 pression de ↓'),
+         bwd(4,'reculer(lire())', s=>'lire() renvoie 4 → 4 pressions de ←'),
+         wr('ecrire(lire() + 1)', s=>V(s)+1, s=>'lire() renvoie '+V(s)+', + 1 → tape '+(V(s)+1)) ],
+  win:s=>s.cells[1][1].v===5 },
+
+{ bloc:5, title:"Les vases communicants",
+  showValues:true,
+  cells:[[7,0,0,3]], start:[0,0],
+  prog:[ read('x'),
+         wr('ecrire(x - 2)', s=>s.vars.x-2, s=>'x - 2 = '+(s.vars.x-2)+' → tape '+(s.vars.x-2)),
+         fwd(3,'avancer(3)'),
+         read('y'),
+         wr('ecrire(y + 2)', s=>s.vars.y+2, s=>'y + 2 = '+(s.vars.y+2)+' → tape '+(s.vars.y+2)) ],
+  win:s=>s.cells[0][0].v===5&&s.cells[0][3].v===5 },
+
+{ bloc:5, title:"La fabrique de mots",
+  showValues:true,
+  cells:[["pi","ta","s"],["","",""]], start:[0,0],
+  prog:[ read('x'),
+         fwd(1,'avancer(1)'),
+         read('y'),
+         stm('z = y + x', s=>{s.vars.z=s.vars.y+s.vars.x;}),
+         fwd(1,'avancer(1)'),
+         read('y'),
+         stm('z = z + y', s=>{s.vars.z=s.vars.z+s.vars.y;}),
+         dwn(1,'descendre(1)'),
+         wrv('z') ],
+  win:s=>s.cells[1][2].v==='tapis' },
+
+{ bloc:5, title:"Le labyrinthe qui boucle", wrap:true,
+  showValues:true,
+  cells:[[3,0,0,2,0],[0,8,0,0,0],[0,4,6,7,9]], start:[0,0],
+  prog:[ read('x'),
+         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
+         read('x'),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         read('x'),
+         bwd(7,'reculer(x)', s=>'x contient 7 → 7 pressions de ←'),
+         read('x'),
+         up(4,'monter(x)', s=>'x contient 4 → 4 pressions de ↑'),
+         read('x'),
+         fwd(8,'avancer(x)', s=>'x contient 8 → 8 pressions de →'),
+         wrn(9) ],
+  win:s=>s.cells[1][4].v===9 },
+
+{ bloc:5, title:"Le compte à rebours",
+  showValues:true,
+  cells:[[4,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]], start:[0,0], target:[2,2],
+  prog:[ read('x'),
+         fwd(4,'avancer(x)', s=>'x contient 4 → 4 pressions de →'),
+         dwn(3,'descendre(x - 1)', s=>'x contient 4, x - 1 = 3 → 3 pressions de ↓'),
+         bwd(2,'reculer(x - 2)', s=>'x contient 4, x - 2 = 2 → 2 pressions de ←'),
+         up(1,'monter(x - 3)', s=>'x contient 4, x - 3 = 1 → 1 pression de ↑'),
+         wr('ecrire(x * 2)', s=>s.vars.x*2, s=>'x * 2 = '+(s.vars.x*2)+' → tape '+(s.vars.x*2)) ],
+  win:s=>s.cells[2][2].v===8 },
+
+{ bloc:5, title:"Le gardien (BOSS de la salle, 1/2)", wrap:true,
+  showValues:true,
+  cells:[["go",0,2,0,5],[0,0,0,3,0],[0,6,0,0,""]], start:[0,2],
+  prog:[ read('x'),
+         fwd(3,'avancer(x + 1)', s=>'x contient 2, x + 1 = 3 → 3 pressions de →'),
+         read('w'),
+         stm('w = w + "al"', s=>{s.vars.w=s.vars.w+'al';}),
+         dwn(2,'descendre(2)'),
+         bwd(1,'reculer(1)'),
+         wrv('w'),
+         up(2,'monter(x)', s=>'x contient 2 → 2 pressions de ↑'),
+         read('y'),
+         stm('y -= 3', s=>{s.vars.y-=3;}),
+         bwd(2,'reculer(y)', s=>'y contient 2 → 2 pressions de ←'),
+         dwn(1,'descendre(y - 1)', s=>'y contient 2, y - 1 = 1 → 1 pression de ↓'),
+         wr('ecrire(x + y)', s=>s.vars.x+s.vars.y, s=>'x + y = '+(s.vars.x+s.vars.y)+' → tape '+(s.vars.x+s.vars.y)),
+         stm('z = y * 3', s=>{s.vars.z=s.vars.y*3;}),
+         dwn(6,'descendre(z)', s=>'z contient 6 → 6 pressions de ↓'),
+         fwd(1,'avancer(z - 5)', s=>'z contient 6, z - 5 = 1 → 1 pression de →'),
+         read('x'),
+         up(2,'monter(x - 1)', s=>'x contient 3, x - 1 = 2 → 2 pressions de ↑'),
+         wr('ecrire(x * 2)', s=>s.vars.x*2, s=>'x * 2 = '+(s.vars.x*2)+' → tape '+(s.vars.x*2)) ],
+  win:s=>s.cells[2][4].v==='goal'&&s.cells[1][2].v===4&&s.cells[2][3].v===6 },
+
+{ bloc:5, title:"Le coeur de la machine (BOSS de la salle, 2/2)", wrap:true,
+  showValues:true,
+  cells:[[3,0,0,7],[0,0,"mi",0],[2,0,0,0],[0,5,0,""]], start:[0,0],
+  prog:[ fwd(3,'avancer(lire())', s=>'lire() renvoie 3 → 3 pressions de →'),
+         read('x'),
+         wr('ecrire(x - 3)', s=>s.vars.x-3, s=>'x - 3 = '+(s.vars.x-3)+' → tape '+(s.vars.x-3)),
+         dwn(1,'descendre(x - 6)', s=>'x contient 7, x - 6 = 1 → 1 pression de ↓'),
+         bwd(1,'reculer(1)'),
+         read('w'),
+         stm('w = w + "di"', s=>{s.vars.w=s.vars.w+'di';}),
+         dwn(2,'descendre(2)'),
+         fwd(1,'avancer(1)'),
+         wrv('w'),
+         up(7,'monter(x)', s=>'x contient 7 → 7 pressions de ↑'),
+         read('y'),
+         stm('y = y / 2', s=>{s.vars.y=s.vars.y/2;}),
+         dwn(2,'descendre(y)', s=>'y contient 2 → 2 pressions de ↓'),
+         bwd(3,'reculer(y + 1)', s=>'y contient 2, y + 1 = 3 → 3 pressions de ←'),
+         read('z'),
+         wr('ecrire(y + z)', s=>s.vars.y+s.vars.z, s=>'y + z = '+(s.vars.y+s.vars.z)+' → tape '+(s.vars.y+s.vars.z)),
+         up(2,'monter(z)', s=>'z contient 2 → 2 pressions de ↑'),
+         wr('ecrire(z * 4)', s=>s.vars.z*4, s=>'z * 4 = '+(s.vars.z*4)+' → tape '+(s.vars.z*4)) ],
+  win:s=>s.cells[3][3].v==='midi'&&s.cells[2][0].v===4&&s.cells[0][0].v===8&&s.cells[0][3].v===4 },
+
+/* ============ BLOC 6, LE BOSS (65) : un seul très long programme, tout le jeu ============ */
+{ bloc:6, title:"La grande révision (LE BOSS)", wrap:true,
+  showValues:true,
+  cells:[[2,0,0,"so",0],[0,3,0,0,9],[8,0,0,6,4],[0,0,"",0,0]], start:[0,0],
+  prog:[ read('x'),
+         fwd(3,'avancer(x + 1)', s=>'x contient 2, x + 1 = 3 → 3 pressions de →'),
+         read('w'),
+         stm('w = w + "l"', s=>{s.vars.w=s.vars.w+'l';}),
+         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
+         read('y'),
+         stm('y = y / 2', s=>{s.vars.y=s.vars.y/2;}),
+         fwd(3,'avancer(y)', s=>'y contient 3 → 3 pressions de →'),
+         dwn(1,'descendre(1)'),
+         wr('ecrire(y * 2)', s=>s.vars.y*2, s=>'y * 2 = '+(s.vars.y*2)+' → tape '+(s.vars.y*2)),
+         fwd(1,'avancer(y - 2)', s=>'y contient 3, y - 2 = 1 → 1 pression de →'),
+         wrv('w'),
+         up(2,'monter(x)', s=>'x contient 2 → 2 pressions de ↑'),
+         bwd(1,'reculer(x - 1)', s=>'x contient 2, x - 1 = 1 → 1 pression de ←'),
+         read('x'),
+         fwd(3,'avancer(lire())', s=>'lire() renvoie 3 → 3 pressions de →'),
+         read('z'),
+         stm('z -= 4', s=>{s.vars.z=s.vars.z-4;}),
+         dwn(3,'descendre(x)', s=>'x contient 3 → 3 pressions de ↓'),
+         wrv('z'),
+         bwd(4,'reculer(z - 1)', s=>'z contient 5, z - 1 = 4 → 4 pressions de ←'),
+         wr('ecrire(x * 3)', s=>s.vars.x*3, s=>'x * 3 = '+(s.vars.x*3)+' → tape '+(s.vars.x*3)) ],
+  win:s=>s.cells[3][1].v===6&&s.cells[3][2].v==='sol'&&s.cells[0][4].v===5&&s.cells[0][0].v===9 },
+];
+
+/* ================= moteur ================= */
+const $=id=>document.getElementById(id);
+let li=0, level=null, G=null, errors=0, dlgIdx=-1, lockUntil=0;
+/* les blocs restent un outil interne de design : le testeur ne voit que "niveau X / 65" */
+
+/* ---- tutoriels scriptés (pas-à-pas) ----
+   step = {say?, key?, do?, pbText?, spot?:['grid','prog'], line?:n|[n], probe?, advance?}
+   say seul  → dialogue, Entrée pour passer
+   say + key → dialogue affiché, on attend LA touche (elle exécute la ligne du programme)
+   do:'pb'   → la touche ouvre/ferme le pense-bête au lieu du programme
+   advance   → à la fin de ce step, on enchaîne directement sur le niveau suivant */
+let tut=null;
+const PB_INTRO=4;   /* index du niveau qui introduit le pense-bête : pas de chips avant */
+const HL_OFF=14;    /* dès ce niveau, la ligne courante n'est plus surlignée (sauf tutoriel scripté, ou après un game over) */
+let gameovers=0;    /* game overs sur le niveau en cours : 1 = surlignage rallumé, 2+ = variables affichées en plus */
+const KEYLBL={ArrowRight:'→',ArrowLeft:'←',ArrowUp:'↑',ArrowDown:'↓',Enter:'Entrée',p:'P'};
+function dlgPagesActive(){ return dlgIdx>=0 && level && level.dlgPages && dlgIdx<level.dlgPages.length; }
+function tutStep(){ return (tut && !dlgPagesActive()) ? tut.steps[tut.i] : null; }
+/* messages des points d'étape entre deux blocs, par bloc d'arrivée */
+const CHECKPOINT={
+  2:"Les programmes vont devenir de plus en plus durs maintenant.",
+  3:"Pour te donner un aperçu : lorsque le jeu sera terminé, le gameplay sera entrecoupé de scénario, ainsi que d'autres gameplays, pour varier.",
+  5:"La dernière zone de la machine. Toutes ses règles ne sont pas écrites : ouvre l'oeil.",
+  6:"Le dernier programme : tout ce que tu sais, en un seul parcours."
+};
+
+function normCells(cells){ return cells.map(row=>row.map(c=>{
+  if(typeof c==='number'||typeof c==='string') return {v:c,col:null};
+  return {v:(c.v!==undefined?c.v:0), col:c.col||null};
+})); }
+
+function loadLevel(n, seq){
+  const prevBloc = level ? level.def.bloc : null;
+  li=n; errors=0; gameovers=0;
+  const L=LEVELS[n];
+  level={def:L, ...compile(L.prog)};
+  level.freshNotes = unlock(L.notes);
+  tut = L.tuto ? {steps:L.tuto, i:0} : null;
+  /* point d'étape entre deux blocs (progression séquentielle uniquement) */
+  const pages=[];
+  if(seq && prevBloc!==null && L.bloc!==prevBloc){
+    pages.push('Tu as résolu <b>'+n+' niveaux sur '+LEVELS.length+'</b> jusqu\'ici. '+(CHECKPOINT[L.bloc]||'Tu veux continuer ?'));
+  }
+  if(L.dialogue) pages.push(...L.dialogue);
+  level.dlgPages = pages;
+  dlgIdx = pages.length ? 0 : -1;
+  resetState(); renderAll();
+  if(!pages.length && !tut) flushNoteChips();
+}
+function flushNoteChips(){
+  if(li<PB_INTRO){ level.freshNotes=[]; return; }   /* le pense-bête n'est présenté qu'au niveau 5 : silence avant */
+  (level.freshNotes||[]).forEach(id=>{ const nt=NOTES[id]; if(nt) chip('pense-bête : "'+nt.t+'", touche P'); });
+  level.freshNotes=[];
+}
+function resetState(){
+  const L=level.def;
+  G={cells:normCells(L.cells), r:L.start[0], c:L.start[1], vars:{}, forC:{}, pc:0, sub:0, steps:0};
+  runFree();
+}
+function skipJumps(){ let g=0; while(level.instrs[G.pc]&&level.instrs[G.pc].type==='jump'){G.pc=level.instrs[G.pc].target; if(++g>9999)break;} }
+function cur(){ return level.instrs[G.pc]; }
+/* les rangements/calculs n'ont pas de touche : la machine les exécute toute seule
+   dès que le programme passe dessus, jusqu'à la prochaine ligne à geste (ou une condition) */
+function runFree(){
+  let g=0;
+  while(g++<9999){
+    skipJumps();
+    const c=cur();
+    if(!c||c.type!=='stmt') break;
+    c.apply(G); if(c.chipFn) chip(c.chipFn(G));
+    G.pc++;
+  }
+}
+
+/* résolution des branches : simulation PURE (copie S, zéro chip) ;
+   les rangements traversés sont notés dans ops, les effets réels ne
+   s'appliquent qu'à la validation (execConcrete). */
+function resolveFrom(pc, invertIdx){
+  const S={cells:G.cells, r:G.r, c:G.c, vars:Object.assign({},G.vars), forC:Object.assign({},G.forC)};
+  const taken=[], ops=[]; let g=0;
+  while(g++<9999){
+    const ins=level.instrs[pc];
+    if(!ins||ins.type==='end') return {pc, ins:ins||null, taken, ops, S};
+    if(ins.type==='jump'){ pc=ins.target; continue; }
+    if(ins.type==='stmt'){ ins.apply(S); ops.push({stmt:ins}); pc++; continue; }
+    if(ins.type==='branch'){
+      let val=!!ins.cond(S);
+      if(invertIdx===taken.length) val=!val;
+      taken.push({ins,val}); ops.push({branch:ins,val});
+      if(val&&ins.onTake) ins.onTake(S,true);
+      pc = val? pc+1 : ins.elseTarget;
+      continue;
+    }
+    return {pc, ins, taken, ops, S};
+  }
+  return {pc, ins:null, taken, ops, S};
+}
+function keyFor(ins, S){
+  if(!ins) return null;
+  if(ins.type==='call') return KEYOF[ins.name];
+  if(ins.type==='write') return String(ins.val(S||G))[0];
+  return null;
+}
+
+/* coloration en UNE passe : on ne re-parcourt jamais le HTML déjà inséré
+   (l'ancienne version en 4 replace successifs colorisait ses propres class="fn" → "fn">" visible) */
+function hlPy(t){
+  return t.replace(/("[a-zé]+")|\b(while|if|else|for|in|range)\b|\b(avancer|reculer|monter|descendre|lire|ecrire|couleur)\b|(\d+)/g,
+    (m,str,kw,fn,nm)=>{
+      if(str) return '<span class="str">'+str+'</span>';
+      if(kw)  return '<span class="kw">'+kw+'</span>';
+      if(fn)  return '<span class="fn">'+fn+'</span>';
+      return '<span class="nm">'+nm+'</span>';
+    });
+}
+function renderAll(){
+  $('lvlno').textContent='niveau '+(li+1)+' / '+LEVELS.length;
+  renderDlg(); render();
+}
+function renderDlg(){
+  const pages=level.dlgPages||[], box=$('dlg'), dim=$('dim');
+  let html=null, next='Entrée ▸', nodim=false, pos='';
+  if(dlgIdx>=0 && dlgIdx<pages.length){
+    html=pages[dlgIdx];
+    next=(dlgIdx<pages.length-1 || tut)?'Entrée ▸':'Entrée ▸ jouer';
+  } else {
+    const st=tutStep();
+    if(st && st.say){ html=st.say; next=st.key ? (KEYLBL[st.key]||st.key)+' ▸' : 'Entrée ▸'; nodim=!!st.nodim; pos=st.pos||''; }
+  }
+  if(html!==null){
+    $('dlgtext').innerHTML=html;
+    $('dlgnext').textContent=next;
+    box.classList.toggle('bottom', pos==='bottom');
+    box.classList.add('show'); dim.classList.toggle('show', !nodim);
+  } else {
+    const wasShown=box.classList.contains('show');
+    box.classList.remove('show'); box.classList.remove('bottom'); dim.classList.remove('show');
+    if(wasShown){ lockUntil=performance.now()+350; flushNoteChips(); }
+  }
+}
+function render(){
+  const L=level.def;
+  /* mises en valeur du tutoriel scripté */
+  const st=tutStep();
+  const spots=(st&&st.spot)||[];
+  const hlLines = st&&st.line!==undefined ? [].concat(st.line) : [];
+  $('gridbox').classList.toggle('spot', spots.includes('grid'));
+  $('progbox').classList.toggle('spot', spots.includes('prog'));
+  $('gridbox').classList.toggle('wrapzone', !!L.wrap);
+  const g=$('grid'); g.innerHTML='';
+  G.cells.forEach((row,ri)=>{
+    const rd=document.createElement('div'); rd.className='row';
+    row.forEach((cell,ci)=>{
+      const d=document.createElement('div');
+      d.className='cell'+(L.showValues?'':' empty')+(cell.col?' col-'+cell.col:'')
+        +((typeof cell.v==='string'&&cell.v.length>1)?' word':'');
+      if(L.target&&L.target[0]===ri&&L.target[1]===ci) d.classList.add('target');
+      if(ri===G.r&&ci===G.c){ d.classList.add('pion'); if(st&&st.probe) d.classList.add('tut'); }
+      d.textContent = L.showValues ? cell.v : '·';
+      rd.appendChild(d);
+    });
+    g.appendChild(rd);
+  });
+  /* panneau des boîtes (échafaudage) */
+  const vp=$('varsp'); vp.innerHTML='';
+  const names=Object.keys(G.vars);
+  if((L.showVars || gameovers>=2) && names.length){
+    const lab=document.createElement('span'); lab.className='vlabel'; lab.textContent='variables'; vp.appendChild(lab);
+    names.forEach(n=>{ const d=document.createElement('span'); d.className='vchip';
+      if(st&&st.vars) d.classList.add('tut');
+      d.innerHTML=n+' = <b>'+fmt(G.vars[n])+'</b>'; vp.appendChild(d); });
+    vp.classList.add('show');
+  } else vp.classList.remove('show');
+  /* programme ; dès HL_OFF, la position n'est plus montrée (sauf tutoriel scripté, ou après un game over) */
+  const showCur = li<HL_OFF || !!L.tuto || gameovers>0;
+  const code=$('code'); code.innerHTML='';
+  level.lines.forEach((ln,lnIdx)=>{
+    const el=document.createElement('span'); el.className='cl';
+    const inst=ln.ii>=0?level.instrs[ln.ii]:null;
+    if(hlLines.includes(lnIdx)) el.classList.add('tut');
+    if(showCur){
+      if(ln.ii===G.pc){ el.classList.add('cur'); }
+      else if(inst&&ln.ii<G.pc&&inst.type!=='branch') el.classList.add('done');
+    }
+    let html='    '.repeat(ln.indent)+hlPy(ln.text);
+    if(showCur && ln.ii===G.pc && inst && inst.type==='call' && (inst.n>1||inst.hideN))
+      html+='<span class="prog">·'+G.sub+(inst.hideN?'':'/'+inst.n)+'</span>';
+    el.innerHTML=html;
+    code.appendChild(el);
+  });
+  /* petit écran : la ligne courante reste visible dans la boîte, et tout nouveau départ (niveau
+     chargé ou programme repris du début) réaffiche le HAUT du programme */
+  const curEl=code.querySelector('.cl.cur');
+  if(curEl) curEl.scrollIntoView({block:'nearest'});
+  else if(G.steps===0) code.scrollTop=0;
+  let eh='erreurs <b>'+errors+'/3</b>';
+  for(let k=0;k<3;k++) eh+='<span class="dot'+(k<errors?' on':'')+'"></span>';
+  const eb=$('errs'); eb.innerHTML=eh; eb.classList.toggle('bad', errors>0);
+}
+
+function chip(text){
+  const c=document.createElement('div'); c.className='chip'; c.textContent=text;
+  $('chips').appendChild(c); setTimeout(()=>c.remove(),2700);
+}
+function bubble(t){ const b=$('bubble'); b.innerHTML=t; b.classList.add('show');
+  clearTimeout(bubble._t); bubble._t=setTimeout(()=>b.classList.remove('show'),3600); }
+
+function ok(){ G.steps++; runFree(); render(); const c=cur(); if(c&&c.type==='end') checkWin(); }
+function fail(msg){
+  errors++;
+  if(errors>=3){ errors=0; gameovers++; resetState(); render();
+    const aides=[];
+    if(li>=HL_OFF&&!level.def.tuto) aides.push('les lignes du programme surlignées');
+    if(gameovers>=2) aides.push('les variables affichées');
+    $('losep').innerHTML='3 erreurs. On reprend le niveau du début'+(aides.length?', avec '+aides.join(' et '):'')+'.';
+    $('lose').classList.add('show'); return; }
+  resetState();
+  /* leçon différée (protocole S3) : sur un niveau à leçon, la PREMIÈRE erreur affiche la leçon
+     à la place de la bulle : on laisse déduire d'abord, on enseigne à l'échec */
+  if(level.def.lecon && !level.leconShown){
+    level.leconShown=true;
+    level.dlgPages=level.def.lecon; dlgIdx=0;
+    renderAll();
+  } else {
+    bubble('✗ erreur '+errors+'/3 : '+msg);
+    render();
+  }
+  const eb=$('errs'); eb.classList.remove('flash'); void eb.offsetWidth; eb.classList.add('flash');
+}
+function checkWin(){
+  if(tut) return;   /* niveau scripté : c'est le tutoriel qui gère la fin (dialogue puis niveau suivant) */
+  if(level.def.win(G)){ $('wt').textContent = li===LEVELS.length-1 ? 'Prototype terminé' : 'Niveau réussi';
+    $('wp').textContent = li===LEVELS.length-1 ? 'Trajets, variables, calculs, mots, le socle est maîtrisé. Prochaine étape : les conditions.'
+                                               : '';
+    $('win').classList.add('show'); }
+  else fail('programme terminé, mais l’objectif est manqué, relis le but.');
+}
+
+const GAMEKEYS=['ArrowRight','ArrowLeft','ArrowUp','ArrowDown','0','1','2','3','4','5','6','7','8','9'];
+
+function execConcrete(res){
+  for(const o of res.ops){
+    if(o.stmt){ o.stmt.apply(G); if(o.stmt.chipFn) chip(o.stmt.chipFn(G)); }
+    else if(o.val && o.branch.onTake) o.branch.onTake(G,false);
+  }
+  G.pc=res.pc;
+}
+function describeExpected(ins, S){
+  if(ins.type==='call') return 'la prochaine ligne à exécuter est "'+ins.py+'" → touche '+ARROW[KEYOF[ins.name]];
+  if(ins.type==='write') return (typeof ins.hint==='function'?ins.hint(S||G):ins.hint);
+  return 'programme terminé.';
+}
+
+/* prochaine touche attendue par le jeu (sert à protéger p/r/b et filtrer les lettres) */
+function expectedKeyNow(){
+  if(!level||!G) return null;
+  const c0=cur(); if(!c0||c0.type==='end') return null;
+  if(c0.type==='call'&&G.sub>0) return KEYOF[c0.name];
+  if(c0.type==='write'&&G.sub>0) return String(c0.val(G))[G.sub];
+  const res=resolveFrom(G.pc,-1); if(!res.ins) return null;
+  return keyFor(res.ins,res.S);
+}
+/* écriture : chiffre unique, ou MOT tapé lettre par lettre (progression visible dans la case) */
+function handleWrite(ins, K){
+  const v=ins.val(G), sv=String(v);
+  if(K!==sv[G.sub]){
+    fail(typeof ins.hint==='function'?ins.hint(G):ins.hint);
+    return;
+  }
+  if(typeof v==='number'){ setV(G, v); G.sub=0; G.pc++; ok(); return; }
+  setV(G, sv.slice(0, G.sub+1));
+  if(G.sub+1>=sv.length){ G.sub=0; G.pc++; ok(); }
+  else { G.sub++; render(); }
+}
+
+/* fin d'un step de tutoriel : renvoie true si un nouveau niveau a été chargé */
+function tutAdvance(){
+  const st=tut.steps[tut.i]; tut.i++;
+  if(st.advance){ tut=null; loadLevel(li<LEVELS.length-1?li+1:0, true); return true; }
+  if(tut.i>=tut.steps.length){ tut=null; lockUntil=performance.now()+350; }
+  return false;
+}
+function togglePB(){ if($('pb').classList.contains('show')) $('pb').classList.remove('show'); else openPB(); }
+
+document.addEventListener('keydown',e=>{
+  const K=e.key;
+  /* ---- tutoriel scripté : il pilote tout, une seule touche acceptée à la fois ---- */
+  const st=tutStep();
+  if(st){
+    if(st.key){                                   /* on attend UNE touche précise */
+      if(K!==st.key){ if(GAMEKEYS.includes(K)) e.preventDefault(); return; }
+      e.preventDefault();
+      if(st.do==='pb'){ if(!tutAdvance()){ togglePB(); renderAll(); } return; }
+      const pc0=G.pc;
+      gameKey(K);
+      if(G.pc!==pc0 && tutAdvance()) return;      /* multi-pressions : on reste sur le step tant que la ligne n'est pas finie */
+      renderAll(); return;
+    }
+    if(K==='Enter'){ e.preventDefault(); if(!tutAdvance()) renderAll(); }
+    return;
+  }
+  if($('pb').classList.contains('show')){ if(K==='p'||K==='P'||K==='Escape'){e.preventDefault();$('pb').classList.remove('show');} return; }
+  if($('menu').classList.contains('show')){ if(K==='m'||K==='M'||K==='Escape'){e.preventDefault();$('menu').classList.remove('show');} return; }
+  if($('win').classList.contains('show')){
+    if(K==='Enter'){ e.preventDefault(); $('win').classList.remove('show'); loadLevel(li<LEVELS.length-1?li+1:0, true); }
+    return;
+  }
+  if($('lose').classList.contains('show')){
+    if(K==='Enter'){ e.preventDefault(); $('lose').classList.remove('show'); lockUntil=performance.now()+350; }
+    return;
+  }
+  if($('dlg').classList.contains('show')){
+    if(K==='Enter'){ e.preventDefault(); dlgIdx++; renderDlg(); render(); }
+    return;
+  }
+  /* p/r/m = raccourcis… SAUF si le mot à taper attend justement cette lettre */
+  const expK=expectedKeyNow();
+  if((K==='p'||K==='P') && expK!=='p'){ e.preventDefault(); openPB(); return; }
+  if((K==='m'||K==='M') && expK!=='m'){ e.preventDefault(); openMenu(); return; }
+  if(e.isTrusted && performance.now()<lockUntil) return;
+  const isLetter=/^[a-z]$/.test(K);
+  if(!GAMEKEYS.includes(K) && !isLetter) return;
+  if(isLetter && !/^[a-z]$/.test(expK||'')) return;   /* lettres ignorées hors écriture de mot */
+  e.preventDefault();
+  gameKey(K);
+});
+
+function gameKey(K){
+  const c0=cur();
+  if(!c0||c0.type==='end') return;
+
+  /* déplacement ou mot multi-pressions en cours : pas de résolution */
+  if(c0.type==='call' && G.sub>0){ handleCall(c0, K); return; }
+  if(c0.type==='write' && G.sub>0){ handleWrite(c0, K); return; }
+
+  /* résoudre les branches selon les conditions réelles (simulation pure) */
+  const res=resolveFrom(G.pc,-1);
+  if(!res.ins||res.ins.type==='end'){ execConcrete(res); ok(); return; }
+  const want=keyFor(res.ins,res.S);
+
+  if(K===want){
+    execConcrete(res);
+    const ins=res.ins;
+    if(ins.type==='call'){ handleCall(ins, K); return; }
+    if(ins.type==='write'){ handleWrite(ins, K); return; }
+  }
+  /* mauvaise touche : QUELLE condition a été mal jugée ? (on inverse chaque branche, une à une) */
+  for(let bi=0; bi<res.taken.length; bi++){
+    const alt=resolveFrom(G.pc,bi);
+    if(alt.ins && keyFor(alt.ins,alt.S)===K){
+      const t=res.taken[bi];
+      const v=t.ins.valText? t.ins.valText(res.S)+' → ' : '';
+      fail(v+'la condition '+t.ins.condPy.replace(/^((while|if|for)\s*)/,'').replace(/:$/,'')+' est '+(t.val?'VRAIE':'FAUSSE')+
+           ' → la prochaine ligne est "'+res.ins.py+'".');
+      return;
+    }
+  }
+  fail(describeExpected(res.ins,res.S));
+}
+
+function handleCall(ins, K){
+  const want=KEYOF[ins.name];
+  if(K!==want){
+    fail(ins.hint ? (typeof ins.hint==='function'?ins.hint(G):ins.hint)
+                  : 'la ligne dit '+ins.py+' → touche '+ARROW[want]+'.');
+    return;
+  }
+  const [dr,dc]=DIRS[ins.name];
+  let nr=G.r+dr, nc=G.c+dc;
+  if(level.def.wrap){ const R=G.cells.length, C=G.cells[0].length; nr=(nr+R)%R; nc=(nc+C)%C; }
+  else if(nr<0||nr>=G.cells.length||nc<0||nc>=G.cells[0].length){ fail('la sonde sort de la mémoire !'); return; }
+  G.r=nr; G.c=nc; G.sub++;
+  if(G.sub>=ins.n){ G.pc++; G.sub=0; }
+  ok();
+}
+
+/* menu des niveaux, accès libre (prototype) */
+function openMenu(){
+  const list=$('menulist'); list.innerHTML='';
+  const w=document.createElement('div'); w.className='mlvls'; list.appendChild(w);
+  LEVELS.forEach((L,i)=>{
+    const b=document.createElement('button'); b.className='mlvl'+(i===li?' cur':''); b.textContent=(i+1);
+    b.onclick=()=>{ $('menu').classList.remove('show'); loadLevel(i); };
+    w.appendChild(b);
+  });
+  $('menu').classList.add('show');
+}
+function openPB(){
+  const list=$('pblist'); list.innerHTML='';
+  unlocked.forEach(id=>{ const n=NOTES[id]; if(!n)return;
+    const d=document.createElement('div'); d.className='note';
+    d.innerHTML='<div class="nt">'+n.t+'</div><div class="nb">'+n.b+'</div>'; list.appendChild(d); });
+  $('pbempty').style.display = unlocked.length?'none':'block';
+  $('pb').classList.add('show');
+}
+
+loadLevel(0);
+</script>

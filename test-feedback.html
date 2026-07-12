@@ -1,0 +1,413 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GameShell · Questionnaire de test</title>
+<style>
+  :root{--bg:#0a0b14;--panel:#12131f;--line:#232538;--txt:#c9cee0;--dim:#6b7192;--faint:#3c415e;
+    --cyan:#22d3ee;--mag:#e64bd0;--vio:#8b7bff;--ok:#41d68a;--err:#ff5470;--gold:#ffcc66}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"JetBrains Mono",ui-monospace,"Cascadia Code",Consolas,monospace}
+  #app{max-width:700px;margin:0 auto;padding:30px 20px 60px}
+  h1{font-size:19px;color:#eaf0ff;margin:0 0 6px}
+  .sub{color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:8px}
+  .req-note{color:var(--faint);font-size:12px;margin-bottom:24px}
+  .sec{color:var(--vio);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;margin:26px 0 10px}
+  .q{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 18px;margin-bottom:12px}
+  .q.missing{border-color:var(--err)}
+  .qt{font-size:14px;color:#eaf0ff;margin-bottom:10px;line-height:1.45}
+  .qt .n{color:var(--vio);margin-right:6px}
+  .qt .star{color:var(--gold)}
+  .hint{color:var(--faint);font-size:11.5px;margin-top:5px}
+  label.choice{display:block;margin:5px 0;font-size:13px;cursor:pointer;color:var(--txt)}
+  label.choice.inline{display:inline-block;margin-right:16px}
+  label.choice input{accent-color:#22d3ee;margin-right:7px}
+  input[type=text],input[type=number],textarea{width:100%;background:#0e1020;border:1px solid #2a2d44;border-radius:8px;
+    color:#eaf0ff;font-family:inherit;font-size:13px;padding:8px 10px;margin-top:4px}
+  input[type=number]{width:140px}
+  textarea{resize:vertical;min-height:56px}
+  .cond{display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #232538}
+  .cond.show{display:block}
+  /* échelle 0-10 */
+  .scale{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}
+  .scale button{width:42px;height:38px;background:#0e1020;border:1px solid #2a2d44;border-radius:8px;
+    color:var(--txt);font-family:inherit;font-size:14px;cursor:pointer}
+  .scale button:hover{border-color:var(--cyan)}
+  .scale button.on{background:#123a5c;border-color:var(--cyan);color:#eafcff}
+  .anchors{display:flex;justify-content:space-between;color:var(--faint);font-size:11px;max-width:520px}
+  #send{margin-top:26px;text-align:center}
+  #sendbtn{background:linear-gradient(135deg,#0e3a46,#123a5c);border:1px solid var(--cyan);color:#eafcff;
+    font-family:inherit;font-size:15px;padding:13px 28px;border-radius:12px;cursor:pointer}
+  #sendbtn:hover{box-shadow:0 0 18px #22d3ee44}
+  #sendmsg{margin-top:12px;font-size:13px;display:none;line-height:1.6}
+  #sendmsg.show{display:block}
+  #sendmsg.ok{color:var(--ok)} #sendmsg.err{color:var(--err)}
+  #preview{display:none;margin-top:14px;background:#0e1020;border:1px solid #2a2d44;border-radius:10px;
+    padding:12px;white-space:pre-wrap;font-size:11.5px;color:var(--dim);text-align:left;max-height:220px;overflow-y:auto}
+  #preview.show{display:block}
+  .foot{margin-top:26px;color:var(--faint);font-size:11px;text-align:center;line-height:1.6}
+  a{color:var(--cyan)}
+</style>
+
+<div id="app">
+  <h1>GameShell · questionnaire de test</h1>
+  <div class="sub">Merci d'avoir testé le <a href="test-s1.html">prototype</a>. Environ
+    <b>4 minutes</b> : presque uniquement des clics et des chiffres. À la fin, clique
+    "Envoyer" : tes réponses partent directement au créateur.</div>
+  <div class="req-note">Les questions marquées <span style="color:var(--gold)">*</span> sont obligatoires.</div>
+
+  <div class="sec">A. Identification</div>
+
+  <div class="q" data-req="discord">
+    <div class="qt"><span class="n">1.</span>Ton pseudo Discord <span class="star">*</span></div>
+    <input type="text" id="discord" placeholder="pseudo exact, tel qu'affiché sur le serveur">
+  </div>
+
+  <div class="q" data-req="numtest">
+    <div class="qt"><span class="n">2.</span>Ton numéro de test (reçu avant la session) <span class="star">*</span></div>
+    <input type="text" id="numtest" placeholder="recopie le numéro reçu en message privé">
+  </div>
+
+  <div class="sec">B. Ta session</div>
+
+  <div class="q" data-req="lastlvl">
+    <div class="qt"><span class="n">3.</span>Numéro du dernier niveau atteint (affiché en jeu, de 1 à 65) <span class="star">*</span></div>
+    <input type="number" id="lastlvl" min="1" max="65">
+  </div>
+
+  <div class="q" data-req="minutes">
+    <div class="qt"><span class="n">4.</span>Temps total passé à jouer, en minutes <span class="star">*</span></div>
+    <input type="number" id="minutes" min="1" max="600">
+    <div class="hint">une estimation honnête suffit</div>
+  </div>
+
+  <div class="q" data-req="fini">
+    <div class="qt"><span class="n">5.</span>As-tu terminé le niveau 65 (LE BOSS) ? <span class="star">*</span></div>
+    <label class="choice inline"><input type="radio" name="fini" value="oui, terminé">oui, terminé</label>
+    <label class="choice inline"><input type="radio" name="fini" value="non, arrêté avant">non, je me suis arrêté avant</label>
+    <div class="cond" id="c-arret">
+      <div class="qt" style="font-size:13px">La raison principale de ton arrêt <span class="star">*</span></div>
+      <label class="choice"><input type="radio" name="arret" value="plus le temps">je n'avais plus le temps</label>
+      <label class="choice"><input type="radio" name="arret" value="game over répétés au même niveau">game over répétés au même niveau</label>
+      <label class="choice"><input type="radio" name="arret" value="je ne comprenais plus ce qu'on me demandait">je ne comprenais plus ce qu'on me demandait</label>
+      <label class="choice"><input type="radio" name="arret" value="je m'ennuyais">je m'ennuyais</label>
+      <label class="choice"><input type="radio" name="arret" value="problème technique">problème technique</label>
+      <label class="choice"><input type="radio" name="arret" value="autre">autre</label>
+      <input type="text" id="arretdetail" placeholder="numéro du niveau + précision">
+    </div>
+  </div>
+
+  <div class="sec">C. Ton verdict</div>
+
+  <div class="q" data-req="fun">
+    <div class="qt"><span class="n">6.</span>De 0 à 10, à quel point t'es-tu amusé pendant cette session ? <span class="star">*</span></div>
+    <div class="scale" id="funscale"></div>
+    <div class="anchors"><span>0 = je me suis ennuyé du début à la fin</span><span>10 = je n'ai pas vu le temps passer</span></div>
+  </div>
+
+  <div class="q" data-req="retour">
+    <div class="qt"><span class="n">7.</span>Demain, tu reçois un lien vers 20 nouveaux niveaux. Honnêtement, que fais-tu ? <span class="star">*</span></div>
+    <label class="choice"><input type="radio" name="retour" value="j'y joue dans les 2-3 jours">j'y joue dans les 2-3 jours</label>
+    <label class="choice"><input type="radio" name="retour" value="j'y joue un jour, sans urgence">j'y joue un jour, sans urgence</label>
+    <label class="choice"><input type="radio" name="retour" value="je ne clique probablement jamais">je ne clique probablement jamais</label>
+  </div>
+
+  <div class="sec">D. Difficulté, rythme, variété</div>
+
+  <div class="q" data-req="courbe">
+    <div class="qt"><span class="n">8.</span>Sur l'ensemble des niveaux joués, le cas le PLUS fréquent pour toi <span class="star">*</span></div>
+    <label class="choice"><input type="radio" name="courbe" value="réussite du premier coup sans réfléchir">je réussissais du premier coup, sans avoir à réfléchir</label>
+    <label class="choice"><input type="radio" name="courbe" value="s'arrêter et réfléchir avant de réussir">je devais m'arrêter et réfléchir un moment avant de réussir</label>
+    <label class="choice"><input type="radio" name="courbe" value="échecs répétés avant de comprendre">j'échouais et je recommençais plusieurs fois avant de comprendre</label>
+  </div>
+
+  <div class="q" data-req="gameovers">
+    <div class="qt"><span class="n">9.</span>Combien de game over (3 erreurs) as-tu eus en tout ? <span class="star">*</span></div>
+    <input type="number" id="gameovers" min="0" max="200">
+    <div class="cond" id="c-go">
+      <div class="qt" style="font-size:13px">À quels niveaux ? <span class="star">*</span></div>
+      <input type="text" id="goniveaux" placeholder="numéros séparés par des virgules">
+    </div>
+  </div>
+
+  <div class="q" data-req="blocage">
+    <div class="qt"><span class="n">10.</span>Quand tu as été coincé le plus longtemps, ce qui te manquait, c'était <span class="star">*</span></div>
+    <label class="choice"><input type="radio" name="blocage" value="comprendre la demande du niveau">comprendre ce que le niveau me demandait</label>
+    <label class="choice"><input type="radio" name="blocage" value="voir comment atteindre le but">je voyais le but, mais pas comment y arriver</label>
+    <label class="choice"><input type="radio" name="blocage" value="erreurs de touche">je savais quoi faire, mais je me trompais de touche</label>
+    <label class="choice"><input type="radio" name="blocage" value="coincé nulle part">je n'ai été coincé nulle part</label>
+    <div class="cond" id="c-bloc">
+      <div class="qt" style="font-size:13px">À quel niveau ? <span class="star">*</span></div>
+      <input type="number" id="blocniveau" min="1" max="65">
+    </div>
+  </div>
+
+  <div class="q" data-req="deja">
+    <div class="qt"><span class="n">11.</span>T'est-il arrivé de te dire "ce niveau, je l'ai déjà fait" ? <span class="star">*</span></div>
+    <label class="choice inline"><input type="radio" name="deja" value="jamais">jamais</label>
+    <label class="choice inline"><input type="radio" name="deja" value="une ou deux fois">une ou deux fois</label>
+    <label class="choice inline"><input type="radio" name="deja" value="régulièrement">régulièrement</label>
+    <div class="cond" id="c-deja">
+      <div class="qt" style="font-size:13px">Où, à peu près ?</div>
+      <input type="text" id="dejaou" placeholder="numéros ou tranche de niveaux">
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="qt"><span class="n">12.</span>Le premier niveau où tu as senti que le jeu devenait vraiment difficile</div>
+    <input type="number" id="bascule" min="1" max="65">
+    <div class="hint">laisse vide si aucun niveau ne t'a semblé difficile</div>
+  </div>
+
+  <div class="sec">E. Notions et clavier</div>
+
+  <div class="q" data-req="teachback">
+    <div class="qt"><span class="n">13.</span>Coche les notions que tu serais incapable de réexpliquer à quelqu'un d'autre <span class="star">*</span></div>
+    <label class="choice"><input type="checkbox" name="tb" value="les variables (x = 2)">les variables (x = 2)</label>
+    <label class="choice"><input type="checkbox" name="tb" value="lire()">lire()</label>
+    <label class="choice"><input type="checkbox" name="tb" value="ecrire() : taper la valeur">ecrire() : taper la valeur</label>
+    <label class="choice"><input type="checkbox" name="tb" value="les calculs (x = x + 1, +=, -=)">les calculs (x = x + 1, +=, -=)</label>
+    <label class="choice"><input type="checkbox" name="tb" value="les variables entre elles (y = x, z = x + y)">les variables entre elles (y = x, z = x + y)</label>
+    <label class="choice"><input type="checkbox" name="tb" value="multiplier et diviser (*, /)">multiplier et diviser (*, /)</label>
+    <label class="choice"><input type="checkbox" name="tb" value="les mots : lire et taper lettre à lettre">les mots : lire et taper lettre à lettre</label>
+    <label class="choice"><input type="checkbox" name="tb" value="coller des mots, et l'ordre (z = y + x)">coller des mots, et l'ordre (z = y + x)</label>
+    <label class="choice"><input type="checkbox" name="tb" value="les pistes : la case dicte le saut">les pistes : la case dicte le saut</label>
+    <label class="choice"><input type="checkbox" name="tb" value="la zone qui boucle (bords en pointillés)">la zone qui boucle (bords en pointillés)</label>
+    <label class="choice"><input type="checkbox" name="tb" value="les calculs en argument (avancer(x + 1))">les calculs en argument (avancer(x + 1))</label>
+    <label class="choice"><input type="checkbox" name="tb" value="je peux toutes les réexpliquer" id="tb-all">je peux toutes les réexpliquer</label>
+  </div>
+
+  <div class="q" data-req="autom">
+    <div class="qt"><span class="n">14.</span>Les commandes (flèches, taper les valeurs) : à quel moment sont-elles devenues automatiques ? <span class="star">*</span></div>
+    <label class="choice"><input type="radio" name="autom" value="dès les premiers niveaux">dès les premiers niveaux</label>
+    <label class="choice"><input type="radio" name="autom" value="au bout d'un ou deux blocs">au bout d'un ou deux blocs</label>
+    <label class="choice"><input type="radio" name="autom" value="jamais">jamais : je cherchais encore mes touches à la fin</label>
+  </div>
+
+  <div class="q">
+    <div class="qt"><span class="n">15.</span>Un bug ou un comportement anormal ? (touche sans effet, caractère impossible à taper, affichage)</div>
+    <input type="text" id="bug" placeholder="numéro du niveau + description du problème">
+  </div>
+
+  <div class="sec">F. Tes moments et tes notes</div>
+
+  <div class="q">
+    <div class="qt"><span class="n">16.</span>Le moment précis où tu t'es le PLUS amusé</div>
+    <input type="text" id="best" placeholder="numéro du niveau + ce qui se passait à ce moment-là">
+  </div>
+
+  <div class="q">
+    <div class="qt"><span class="n">17.</span>Le moment où tu as failli arrêter</div>
+    <input type="text" id="worst" placeholder="numéro du niveau + ce qui se passait à ce moment-là">
+  </div>
+
+  <div class="q">
+    <div class="qt"><span class="n">18.</span>Colle ici tes notes prises pendant la session</div>
+    <textarea id="notes" placeholder="telles quelles, sans reformater, avec bloc + niveau si tu les as"></textarea>
+  </div>
+
+  <div class="sec">G. Toi (30 secondes, pour savoir à qui le jeu parle)</div>
+
+  <div class="q" data-req="age">
+    <div class="qt"><span class="n">19.</span>Ton âge <span class="star">*</span></div>
+    <input type="number" id="age" min="8" max="99">
+  </div>
+
+  <div class="q" data-req="heures">
+    <div class="qt"><span class="n">20.</span>Combien d'heures par semaine joues-tu aux jeux vidéo, toutes plateformes confondues ? <span class="star">*</span></div>
+    <input type="number" id="heures" min="0" max="100">
+    <div class="hint">moyenne de ces derniers mois</div>
+  </div>
+
+  <div class="q" data-req="motiv">
+    <div class="qt"><span class="n">21.</span>Dans les jeux en général, coche les 3 propositions qui te ressemblent le plus (exactement 3) <span class="star">*</span></div>
+    <label class="choice"><input type="checkbox" name="motiv" value="action rapide/adrénaline">l'action rapide, l'adrénaline, les moments intenses</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="destruction/chaos">tout casser, semer le chaos</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="compétition">affronter d'autres joueurs et gagner</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="communauté">jouer en groupe, avec ou contre des amis</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="défi">les défis qui demandent de s'entraîner pour être surmontés</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="stratégie">prendre le temps de réfléchir et d'élaborer un plan</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="complétion/trophées">finir le jeu à 100 % : tout collecter, tous les trophées</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="puissance/optimisation">devenir puissant, optimiser mon personnage ou mon équipement</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="fantasme/immersion">m'immerger dans un univers, être quelqu'un d'autre</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="histoire">une histoire forte et des personnages marquants</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="création">construire, personnaliser, créer mes propres choses</label>
+    <label class="choice"><input type="checkbox" name="motiv" value="découverte/exploration">explorer, fouiller, découvrir ce qui est caché</label>
+  </div>
+
+  <div class="q" data-req="expcode">
+    <div class="qt"><span class="n">22.</span>Ton expérience de la programmation avant ce test <span class="star">*</span></div>
+    <label class="choice"><input type="radio" name="expcode" value="jamais écrit une ligne de code">jamais écrit une ligne de code</label>
+    <label class="choice"><input type="radio" name="expcode" value="essayé sans être autonome">déjà essayé (tuto, cours, Scratch) sans être autonome</label>
+    <label class="choice"><input type="radio" name="expcode" value="capable d'écrire un petit programme seul">capable d'écrire un petit programme seul</label>
+    <label class="choice"><input type="radio" name="expcode" value="code régulièrement">je code régulièrement (études, travail, projets)</label>
+  </div>
+
+  <div class="q" data-req="envie">
+    <div class="qt"><span class="n">23.</span>Si on t'offrait 10 heures de cours pour apprendre à programmer, tu <span class="star">*</span></div>
+    <label class="choice"><input type="radio" name="envie" value="les prendrais dès cette semaine">les prendrais dès cette semaine</label>
+    <label class="choice"><input type="radio" name="envie" value="les garderais pour plus tard">les garderais pour plus tard</label>
+    <label class="choice"><input type="radio" name="envie" value="les déclinerais">les déclinerais</label>
+  </div>
+
+  <div class="q" data-req="horreur">
+    <div class="qt"><span class="n">24.</span>La dernière fois que tu as choisi de toi-même un jeu ou un film d'horreur, c'était <span class="star">*</span></div>
+    <label class="choice inline"><input type="radio" name="horreur" value="ce mois-ci">ce mois-ci</label>
+    <label class="choice inline"><input type="radio" name="horreur" value="dans l'année">dans l'année</label>
+    <label class="choice inline"><input type="radio" name="horreur" value="il y a plus d'un an">il y a plus d'un an</label>
+    <label class="choice inline"><input type="radio" name="horreur" value="jamais">jamais</label>
+  </div>
+
+  <div class="q" data-req="conversion">
+    <div class="qt"><span class="n">25.</span>La version finale de ce jeu sera un thriller d'horreur psychologique (tension, ambiance oppressante). Avec cette ambiance, tu y jouerais <span class="star">*</span></div>
+    <label class="choice"><input type="radio" name="conversion" value="plus volontiers qu'aujourd'hui">plus volontiers qu'aujourd'hui</label>
+    <label class="choice"><input type="radio" name="conversion" value="autant">autant</label>
+    <label class="choice"><input type="radio" name="conversion" value="moins volontiers">moins volontiers</label>
+    <label class="choice"><input type="radio" name="conversion" value="je n'y jouerais plus">je n'y jouerais plus</label>
+  </div>
+
+  <div class="q">
+    <div class="qt"><span class="n">26.</span>Autre chose à dire ?</div>
+    <textarea id="libre" placeholder="tout ce qui n'a pas trouvé sa place plus haut"></textarea>
+  </div>
+
+  <div id="send">
+    <button id="sendbtn">Envoyer mes réponses</button>
+    <div id="sendmsg"></div>
+    <div id="preview"></div>
+  </div>
+
+  <div class="foot">GameShell, prototype d'apprentissage de la programmation. Tes réponses sont
+    envoyées au créateur (via Formspree). Rien d'autre n'est collecté.</div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const radio=n=>{ const r=document.querySelector('input[name="'+n+'"]:checked'); return r?r.value:''; };
+const checks=n=>[...document.querySelectorAll('input[name="'+n+'"]:checked')].map(x=>x.value);
+const val=id=>$(id).value.trim();
+
+/* échelle 0-10 */
+let fun=null;
+const fs=$('funscale');
+for(let i=0;i<=10;i++){ const b=document.createElement('button'); b.type='button'; b.textContent=i;
+  b.onclick=()=>{ fun=i; [...fs.children].forEach((x,k)=>x.classList.toggle('on',k===i)); };
+  fs.appendChild(b); }
+
+/* conditionnelles */
+document.querySelectorAll('input[name="fini"]').forEach(r=>r.addEventListener('change',()=>{
+  $('c-arret').classList.toggle('show', radio('fini').startsWith('non')); }));
+$('gameovers').addEventListener('input',()=>{
+  $('c-go').classList.toggle('show', (+$('gameovers').value||0)>0); });
+document.querySelectorAll('input[name="blocage"]').forEach(r=>r.addEventListener('change',()=>{
+  $('c-bloc').classList.toggle('show', radio('blocage')!=='coincé nulle part'); }));
+document.querySelectorAll('input[name="deja"]').forEach(r=>r.addEventListener('change',()=>{
+  $('c-deja').classList.toggle('show', radio('deja')!=='jamais'); }));
+
+/* Q13 : "toutes" est exclusif */
+document.querySelectorAll('input[name="tb"]').forEach(c=>c.addEventListener('change',()=>{
+  const all=$('tb-all');
+  if(c===all && all.checked) document.querySelectorAll('input[name="tb"]').forEach(x=>{ if(x!==all) x.checked=false; });
+  else if(c.checked && c!==all) all.checked=false;
+}));
+
+/* Q21 : exactement 3 (verrou à 3 max) */
+document.querySelectorAll('input[name="motiv"]').forEach(c=>c.addEventListener('change',()=>{
+  if(checks('motiv').length>3) c.checked=false;
+}));
+
+/* validation des obligatoires */
+function validate(){
+  const missing=[];
+  const need=(cond,key)=>{ const el=document.querySelector('.q[data-req="'+key+'"]');
+    if(el) el.classList.toggle('missing', !cond); if(!cond) missing.push(el); };
+  need(!!val('discord'),'discord');
+  need(!!val('numtest'),'numtest');
+  need(!!val('lastlvl'),'lastlvl');
+  need(!!val('minutes'),'minutes');
+  const fini=radio('fini');
+  need(!!fini && (fini.startsWith('oui') || !!radio('arret')), 'fini');
+  need(fun!==null,'fun');
+  need(!!radio('retour'),'retour');
+  need(!!radio('courbe'),'courbe');
+  const go=val('gameovers');
+  need(go!=='' && ((+go===0) || !!val('goniveaux')), 'gameovers');
+  const bl=radio('blocage');
+  need(!!bl && (bl==='coincé nulle part' || !!val('blocniveau')), 'blocage');
+  need(!!radio('deja'),'deja');
+  need(checks('tb').length>0,'teachback');
+  need(!!radio('autom'),'autom');
+  need(!!val('age'),'age');
+  need(val('heures')!=='','heures');
+  need(checks('motiv').length===3,'motiv');
+  need(!!radio('expcode'),'expcode');
+  need(!!radio('envie'),'envie');
+  need(!!radio('horreur'),'horreur');
+  need(!!radio('conversion'),'conversion');
+  return missing.filter(Boolean);
+}
+
+function dash(v){ return v===''||v===null||v===undefined ? '-' : v; }
+function buildSummary(){
+  return [
+    '=== RETOUR TEST GAMESHELL ('+new Date().toLocaleDateString('fr-FR')+') ===',
+    'A· Testeur : '+val('discord')+' · test n° '+val('numtest'),
+    'B· Dernier niveau : '+val('lastlvl')+' · minutes : '+val('minutes')+' · boss fini : '+dash(radio('fini')),
+    '   Arrêt : '+dash(radio('arret'))+(val('arretdetail')?' ('+val('arretdetail')+')':''),
+    'C· Fun : '+fun+'/10 · 20 nouveaux niveaux demain : '+dash(radio('retour')),
+    'D· Cas le plus fréquent : '+dash(radio('courbe')),
+    '   Game overs : '+val('gameovers')+(val('goniveaux')?' (niveaux '+val('goniveaux')+')':''),
+    '   Blocage : '+dash(radio('blocage'))+(val('blocniveau')?' (niveau '+val('blocniveau')+')':''),
+    '   Déjà-vu : '+dash(radio('deja'))+(val('dejaou')?' ('+val('dejaou')+')':''),
+    '   Bascule difficulté : niveau '+dash(val('bascule')),
+    'E· Incapable de réexpliquer : '+(checks('tb').join(', ')||'-'),
+    '   Automatisation clavier : '+dash(radio('autom'))+' · bug : '+dash(val('bug')),
+    'F· Meilleur moment : '+dash(val('best')),
+    '   Failli arrêter : '+dash(val('worst')),
+    '   Notes de session : '+dash(val('notes')),
+    'G· Âge : '+val('age')+' · h/sem JV : '+val('heures'),
+    '   Motivations (top 3) : '+checks('motiv').join(', '),
+    '   Code : '+dash(radio('expcode'))+' · 10 h de cours offertes : '+dash(radio('envie')),
+    '   Horreur choisie : '+dash(radio('horreur'))+' · version horreur : '+dash(radio('conversion')),
+    '   Libre : '+dash(val('libre')),
+    'Tech : '+navigator.userAgent.split(') ').pop().split(' ').slice(0,2).join(' ')+' · écran '+screen.width+'×'+screen.height,
+  ].join('\n');
+}
+
+$('sendbtn').addEventListener('click',async()=>{
+  const missing=validate();
+  const msg=$('sendmsg');
+  if(missing.length){
+    msg.className='show err';
+    msg.textContent='Il manque '+missing.length+' réponse'+(missing.length>1?'s':'')+' obligatoire'+(missing.length>1?'s':'')+' (encadrées en rouge).';
+    missing[0].scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+  const t=buildSummary();
+  const btn=$('sendbtn');
+  btn.disabled=true; btn.textContent='Envoi…';
+  try{
+    const r=await fetch('https://formspree.io/f/xnjeadle',{
+      method:'POST',
+      headers:{'Accept':'application/json','Content-Type':'application/json'},
+      body:JSON.stringify({
+        _subject:'Retour test GameShell - '+val('discord')+' (test n° '+val('numtest')+')',
+        testeur_discord:val('discord'), numero_test:val('numtest'),
+        dernier_niveau:val('lastlvl'), fun_0_10:fun, age:val('age'),
+        exp_code:radio('expcode'),
+        resume:t
+      })
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    btn.textContent='Envoyé';
+    msg.className='show ok';
+    msg.textContent='C\'est parti, merci beaucoup pour ton temps !';
+  }catch(e){
+    try{ await navigator.clipboard.writeText(t); }catch(_){}
+    const pv=$('preview'); pv.textContent=t; pv.classList.add('show');
+    btn.disabled=false; btn.textContent='Envoyer mes réponses';
+    msg.className='show err';
+    msg.textContent='L\'envoi automatique a échoué : tes réponses sont copiées dans ton presse-papier : colle-les là où tu as reçu le lien. Merci !';
+  }
+});
+</script>

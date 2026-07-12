@@ -1,0 +1,850 @@
+<meta charset="utf-8">
+<title>GameShell · Test S2 (le terminal)</title>
+<style>
+  :root{
+    --bg:#0a0b14; --panel:#12131f; --line:#232538;
+    --txt:#c9cee0; --dim:#6b7192; --faint:#3c415e;
+    --cyan:#22d3ee; --mag:#e64bd0; --vio:#8b7bff;
+    --ok:#41d68a; --err:#ff5470; --gold:#ffcc66; --green:#7ee787;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:"JetBrains Mono",ui-monospace,"Cascadia Code",Consolas,monospace}
+  #app{max-width:860px;margin:0 auto;padding:26px 22px 30px;display:flex;flex-direction:column;min-height:100vh}
+  header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px}
+  h1{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0;font-weight:600}
+  #lvlno{color:var(--faint);font-size:12px}
+  #goal{color:var(--dim);font-size:13.5px;margin:0 0 14px;min-height:18px}
+  #goal b{color:var(--gold);font-weight:600}
+  /* terminal */
+  #term{background:#070810;border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+    min-height:280px;max-height:56vh;overflow-y:auto;font-size:14px;line-height:1.7;
+    scrollbar-width:thin;scrollbar-color:#2a2d44 transparent;cursor:text}
+  #out{white-space:pre-wrap;word-break:break-all}
+  #out .p{color:var(--green)} #out .path{color:var(--cyan)} #out .errline{color:#ff9aa8}
+  #out .dir{color:var(--cyan)}
+  #pline{white-space:pre-wrap;word-break:break-all}
+  #pline .p{color:var(--green)} #pline .path{color:var(--cyan)}
+  /* curseur bloc en vidéo inversée, comme un vrai terminal : le caractère reste lisible */
+  #caret{background:var(--txt);color:#070810;border-radius:2px;animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{background:transparent;color:inherit}}
+  /* coach */
+  #coach{display:none;margin-top:16px;background:#0e1a22;border:1px solid #1d4a5a;border-left:3px solid var(--cyan);
+    border-radius:10px;padding:10px 16px;font-size:13.5px;line-height:1.5;color:#d8f4fb}
+  #coach.show{display:block}
+  #coach code,#coach b{color:var(--cyan);font-family:inherit}
+  #coach .k{display:inline-block;background:#0e1020;border:1px solid #2a2d44;border-bottom-color:#000;
+    border-radius:5px;padding:0 6px;color:#eaf0ff}
+  /* dialogue centré */
+  #dlg{display:none;position:fixed;inset:0;background:#05060cc9;z-index:15;align-items:center;justify-content:center}
+  #dlg.show{display:flex}
+  .dlgcard{background:#101322;border:1px solid var(--line);border-left:3px solid var(--mag);
+    border-radius:14px;padding:26px 30px;max-width:560px;margin:20px;text-align:center;
+    box-shadow:0 12px 48px #00000088}
+  #dlgtext{font-size:15.5px;line-height:1.65;color:#e6eaf8}
+  #dlgtext b,#dlgtext code{color:var(--cyan);font-style:normal;font-family:inherit}
+  #dlgnext{margin-top:14px;font-size:11.5px;color:var(--faint)}
+  /* footer */
+  footer{margin-top:16px;display:flex;gap:18px;font-size:11.5px;color:var(--faint);align-items:center}
+  footer .k{color:var(--dim)}
+  footer button{background:none;border:none;color:var(--dim);font-family:inherit;font-size:11.5px;cursor:pointer;padding:0}
+  footer button:hover{color:var(--cyan)}
+  #dots span{color:#2a2d44} #dots span.on{color:var(--err)}
+  /* bulle erreur */
+  #bubble{position:fixed;left:50%;top:20px;transform:translateX(-50%) translateY(-16px);
+    background:#2a0e18;border:1px solid var(--err);color:#ffd7de;padding:9px 16px;border-radius:10px;
+    font-size:13px;opacity:0;pointer-events:none;transition:.18s;z-index:9;max-width:88%}
+  #bubble.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #bubble code{color:#ffd7de;font-family:inherit}
+  /* overlays */
+  .ov{position:fixed;inset:0;background:#05060cdd;display:none;align-items:center;justify-content:center;z-index:20}
+  .ov.show{display:flex}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 32px;text-align:center;max-width:430px}
+  .card h2{margin:0 0 6px;color:var(--ok);font-size:21px}
+  .card h2.bad{color:var(--err);letter-spacing:.08em}
+  #lose .card{border-color:#5c2333}
+  .card p{color:var(--dim);font-size:13px;line-height:1.5;margin:0}
+  .card .go{margin-top:14px;color:var(--cyan);font-size:13px}
+  /* pense-bête */
+  #pb .card{max-width:580px;text-align:left;max-height:82vh;overflow-y:auto}
+  #pb h2{color:var(--vio);font-size:16px;letter-spacing:.06em}
+  .note{margin:12px 0 0;padding:10px 14px;background:#0e1020;border:1px solid #2a2d44;border-radius:9px}
+  .note .nt{color:var(--cyan);font-size:13px;margin-bottom:3px}
+  .note .nb{color:var(--txt);font-size:12.5px;line-height:1.55}
+  .note .nb code{color:var(--gold)}
+  #pbempty{color:var(--faint);font-size:13px;margin-top:10px}
+  #pbclose{margin-top:16px;color:var(--faint);font-size:11.5px}
+  /* menu niveaux */
+  #menu .card{max-width:640px;text-align:left}
+  #menu h2{color:var(--cyan);font-size:16px;letter-spacing:.06em;margin:0 0 10px}
+  .mlvls{display:flex;flex-wrap:wrap;gap:6px}
+  .mlvl{background:#0e1020;border:1px solid #2a2d44;border-radius:8px;padding:5px 10px;font-size:12px;
+    color:var(--txt);cursor:pointer;font-family:inherit}
+  .mlvl:hover{border-color:var(--cyan);color:#eafcff}
+  .mlvl.cur{border-color:var(--gold);color:var(--gold)}
+  #menuclose{margin-top:14px;color:var(--faint);font-size:11.5px}
+</style>
+
+<div id="app">
+  <header><h1>GameShell · Test S2</h1><div id="lvlno"></div></header>
+  <div id="goal"></div>
+  <div id="term"><div id="out"></div><div id="pline"></div></div>
+  <div id="coach"></div>
+  <footer>
+    <button id="btn-pb"><span style="color:var(--dim)">P</span> pense-bête</button>
+    <button id="btn-menu"><span style="color:var(--dim)">M</span> niveaux</button>
+    <span id="dots"></span>
+    <span style="margin-left:auto"><a href="test-feedback.html" target="_blank" style="color:var(--dim);text-decoration:none">donner mon avis</a></span>
+  </footer>
+</div>
+
+<div id="dlg"><div class="dlgcard"><div id="dlgtext"></div><div id="dlgnext">Entrée ▸</div></div></div>
+<div id="bubble"></div>
+<div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div class="go">Entrée ▸</div></div></div>
+<div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p>3 erreurs. On reprend le niveau du début.</p><div class="go">Entrée ▸ recommencer</div></div></div>
+<div class="ov" id="pb"><div class="card"><h2>Pense-bête</h2><div id="pblist"></div><div id="pbempty">Rien encore : les notions s'ajoutent au fil du jeu.</div><div id="pbclose">P ou Échap pour fermer</div></div></div>
+<div class="ov" id="menu"><div class="card"><h2>Niveaux · accès libre (prototype)</h2><div class="mlvls" id="menulist"></div><div id="menuclose">M ou Échap pour fermer · clique un niveau</div></div></div>
+
+<script>
+"use strict";
+/* ================= pense-bête ================= */
+const NOTES={
+  edition:{t:"Écrire et corriger", b:"Tape, <b>Entrée</b> valide. <b>Retour arrière</b> efface à gauche du curseur ; <b>←</b>/<b>→</b> déplacent le curseur sans rien effacer."},
+  bornes:{t:"Ctrl+A / Ctrl+E : les bornes", b:"<b>Ctrl+A</b> saute au tout début de la ligne, <b>Ctrl+E</b> à la toute fin. (Début/Fin marchent souvent aussi, mais Ctrl+A/E marchent partout.)"},
+  crochets:{t:"AZERTY : [ ] ( )", b:"<b>AltGr+5</b> donne <code>[</code> ; <b>AltGr+°</b> (à droite du 0) donne <code>]</code>. <code>(</code> et <code>)</code> se tapent directement (touches 5 et °)."},
+  mot:{t:"Effacer un mot", b:"<b>Alt+Retour arrière</b> efface le mot avant le curseur. Dans un vrai terminal, <code>Ctrl+W</code> fait pareil (ici, le navigateur fermerait l'onglet)."},
+  couper:{t:"Ctrl+U : couper", b:"Coupe tout jusqu'au début de la ligne et le garde en mémoire. (<b>Ctrl+K</b> coupe vers la fin.)"},
+  coller:{t:"Ctrl+Y : coller", b:"Recolle ce qui vient d'être coupé. Couper + coller : le copier-coller au clavier, sans souris."},
+  prompt:{t:"Le prompt", b:"<code>joueur@machine:~$</code> : la machine affiche où tu es (<code>~</code> = ta maison) et attend une commande."},
+  pwd:{t:"pwd", b:"Affiche le chemin complet du dossier où tu te trouves."},
+  ls:{t:"ls", b:"Liste le contenu du dossier courant : les dossiers (en couleur, avec /) et les fichiers."},
+  cd:{t:"cd", b:"<code>cd dossier</code> te déplace dans ce dossier. Le prompt suit."},
+  parent:{t:"Remonter : ..", b:"<code>..</code> désigne le dossier parent. <code>cd ..</code> remonte d'un cran."},
+  chemins:{t:"Les chemins", b:"Les dossiers s'enchaînent avec <code>/</code> : <code>cd datas/archives</code> fait deux plongées en une commande."},
+  tilde:{t:"La maison : ~", b:"<code>~</code> = ton dossier de départ. <code>cd ~</code> (ou <code>cd</code> tout seul) t'y ramène d'où que tu sois."},
+  moins:{t:"cd -", b:"Retourne au dossier précédent. Re-taper <code>cd -</code> re-bascule : l'aller-retour."},
+  tab:{t:"Tab : compléter", b:"Tape le début d'un nom puis <b>Tab</b> : la machine complète pour toi. Personne ne tape les noms en entier."},
+  historique:{t:"L'historique : ↑", b:"<b>↑</b> et <b>↓</b> rappellent les commandes déjà tapées. Rappeler puis Entrée = ré-exécuter."},
+};
+const unlocked=[];
+function unlock(ids){ const fresh=[]; for(const id of (ids||[])) if(!unlocked.includes(id)){unlocked.push(id); fresh.push(id);} return fresh; }
+
+/* ================= le système de fichiers ================= */
+const FS={
+  'datas':{ 'archives':{ 'vieux-logs.txt':1 }, 'fragments.txt':1, 'noyau.bin':1 },
+  'journaux':{ 'boot.log':1, 'erreurs.log':1 },
+  'configuration-systeme':{ 'reseau.cfg':1 },
+  'lisez-moi.txt':1
+};
+const HOME='/home/joueur';
+function dirAt(segs){ let n=FS; for(const s of segs){ if(!n||typeof n!=='object'||!(s in n)) return null; n=n[s]; } return (n&&typeof n==='object')?n:null; }
+function nodeAt(segs){ let n=FS; for(const s of segs){ if(!n||typeof n!=='object'||!(s in n)) return undefined; n=n[s]; } return n; }
+function splitPath(p, base){
+  for(const part of p.split('/')){
+    if(!part||part==='.') continue;
+    if(part==='..'){ if(base.length) base.pop(); }
+    else base.push(part);
+  }
+  return base;
+}
+function resolvePath(arg, cwd){
+  if(arg===''||arg==='~') return [];
+  if(arg.startsWith('~/')) return splitPath(arg.slice(2), []);
+  if(arg.startsWith('/')){
+    if(arg===HOME) return [];
+    if(arg.startsWith(HOME+'/')) return splitPath(arg.slice(HOME.length+1), []);
+    return null;
+  }
+  return splitPath(arg, cwd.slice());
+}
+function tildePath(segs){ return '~'+(segs.length?'/'+segs.join('/'):''); }
+function fullPath(segs){ return HOME+(segs.length?'/'+segs.join('/'):''); }
+
+/* ============ LE CLAVIER : 4 blocs (programme atomique de la ligne de commande) ============ */
+/* Programme : frappe+Entrée · Retour arrière · ←/→ · Ctrl+A/E · Alt+Retour arrière (mot) ·
+   Ctrl+U (couper) · Ctrl+Y (coller) · ↑/↓ (historique). Tab appartient au bloc navigation.
+   Structure par bloc (recette S1) : tuto guidé (leçons) PUIS épreuves sans guide TOUTES
+   multi-lignes, à difficulté croissante, jusqu'au boss ; le bloc suivant redescend (rappel).
+   MODE GUIDE : LA séquence optimale touche par touche ; hors séquence = erreur + recommence ;
+   3 erreurs = game over. Ctrl+W réservé navigateur -> Alt+Retour arrière (M-DEL) ; desktop : Ctrl+W. */
+const KB=[
+/* ---------- BLOC A "Écrire" : frappe, Entrée, Retour arrière, ← ---------- */
+{ kb:true, bloc:0, title:"Réveil du clavier", guide:true,
+  dialogue:[
+    "Cette machine est morte depuis des années. Personne ne l'a rallumée. Et pourtant… son terminal répond encore.",
+    "Avant de comprendre sa langue, tes mains. Elle te guide <b>touche par touche</b> : la bonne touche avance, une mauvaise touche compte comme une erreur et le niveau recommence.",
+    "Écris <code>noyau</code> puis valide par <b>Entrée</b>. Tout ce que tu apprends se range dans le pense-bête, touche <b>P</b>."],
+  notes:['edition'],
+  goal:"Écris <b>noyau</b> et valide.",
+  sol:['n','o','y','a','u','Enter'] },
+
+{ kb:true, bloc:0, title:"Une lettre en trop", guide:true,
+  dialogue:["<b>Retour arrière</b> efface le caractère à gauche du curseur. La faute est au bout de la ligne ? Un seul coup suffit."],
+  startBuf:"noyauu",
+  goal:"Obtiens <b>noyau</b>.",
+  sol:['BS','Enter'] },
+
+{ kb:true, bloc:0, title:"Corriger au bon endroit", guide:true,
+  dialogue:["Et si la faute n'est <b>pas</b> au bout ? <b>←</b> recule le curseur <b>sans rien effacer</b>. On se place, puis on corrige. Jamais tout retaper."],
+  startBuf:"reacteuur",
+  goal:"Un <b>u</b> en trop : recule avec ←, efface-le → <b>reacteur</b>.",
+  sol:['Left','BS','Enter'] },
+
+{ kb:true, bloc:0, title:"Première session",
+  dialogue:["À toi, sans guide. Une vraie session : <b>plusieurs lignes à la suite</b>, dans le même terminal. Obtiens chaque ligne par le <b>chemin le plus rapide</b> : chaque détour compte comme une erreur."],
+  parts:[
+    { goal:"envoie <b>echo</b>.", sol:['e','c','h','o','Enter'] },
+    { goal:"obtiens <b>boot</b> le plus vite possible.", startBuf:"bootr", sol:['BS','Enter'] },
+  ] },
+
+{ kb:true, bloc:0, title:"Deux réparations",
+  parts:[
+    { goal:"obtiens <b>veille</b> le plus vite possible.", startBuf:"veile", sol:['Left','l','Enter'] },
+    { goal:"envoie <b>signal</b>.", sol:['s','i','g','n','a','l','Enter'] },
+  ] },
+
+{ kb:true, bloc:0, title:"Plus profond",
+  parts:[
+    { goal:"obtiens <b>atmosphere</b> le plus vite possible.", startBuf:"atmosphhere",
+      sol:['Left','Left','Left','BS','Enter'] },
+    { goal:"obtiens <b>perimetre</b> le plus vite possible.", startBuf:"perimtre",
+      sol:['Left','Left','Left','e','Enter'] },
+  ] },
+
+{ kb:true, bloc:0, title:"Trois lignes",
+  parts:[
+    { goal:"obtiens <b>mise a jour</b> le plus vite possible.", startBuf:"mise a jouur",
+      sol:['Left','BS','Enter'] },
+    { goal:"obtiens <b>diagnostic</b> le plus vite possible.", startBuf:"diagnosstic",
+      sol:['Left','Left','Left','BS','Enter'] },
+    { goal:"obtiens <b>maintenant</b> le plus vite possible.", startBuf:"mainttenant",
+      sol:['Left','Left','Left','Left','Left','BS','Enter'] },
+  ] },
+
+{ kb:true, bloc:0, title:"La dictée (BOSS du bloc)",
+  parts:[
+    { goal:"envoie <b>etat des machines</b>.",
+      sol:['e','t','a','t',' ','d','e','s',' ','m','a','c','h','i','n','e','s','Enter'] },
+    { goal:"obtiens <b>enregistrement</b> le plus vite possible.", startBuf:"enregistremment",
+      sol:['Left','Left','Left','BS','Enter'] },
+    { goal:"obtiens <b>configuration generale</b> le plus vite possible.", startBuf:"configuratiion generale",
+      sol:['Left','Left','Left','Left','Left','Left','Left','Left','Left','Left','Left','BS','Enter'] },
+  ] },
+
+/* ---------- BLOC B "Les bornes" : Ctrl+A / Ctrl+E ---------- */
+{ kb:true, bloc:1, title:"Échauffement",
+  parts:[
+    { goal:"envoie <b>pause</b>.", sol:['p','a','u','s','e','Enter'] },
+    { goal:"obtiens <b>zone</b> le plus vite possible.", startBuf:"zonne", sol:['Left','BS','Enter'] },
+  ] },
+
+{ kb:true, bloc:1, title:"Aux extrémités", guide:true,
+  dialogue:["<b>Ctrl+A</b> saute au tout début de la ligne, <b>Ctrl+E</b> à la toute fin. Instantané, d'où que tu sois.",
+    "Au passage, les crochets sur AZERTY : <b>AltGr+5</b> donne <code>[</code>, <b>AltGr+°</b> (à droite du 0) donne <code>]</code>."],
+  notes:['bornes','crochets'],
+  startBuf:"moteur", startCur:3,
+  goal:"Encadre le mot → <b>[moteur]</b> : Ctrl+A pour le début, Ctrl+E pour la fin.",
+  sol:['C-a','[','C-e',']','Enter'] },
+
+{ kb:true, bloc:1, title:"Habiller",
+  parts:[
+    { goal:"obtiens <b>(code)</b> le plus vite possible.", startBuf:"codee",
+      sol:['BS',')','C-a','(','Enter'] },
+    { goal:"obtiens <b>rapport.txt</b> le plus vite possible.", startBuf:"rapport", startCur:2,
+      sol:['C-e','.','t','x','t','Enter'] },
+  ] },
+
+{ kb:true, bloc:1, title:"Les deux bouts",
+  parts:[
+    { goal:"obtiens <b>le signal</b> le plus vite possible.", startBuf:"signal",
+      sol:['C-a','l','e',' ','Enter'] },
+    { goal:"obtiens <b>mesure exacte</b> le plus vite possible.", startBuf:"mesure", startCur:3,
+      sol:['C-e',' ','e','x','a','c','t','e','Enter'] },
+  ] },
+
+{ kb:true, bloc:1, title:"Emballages",
+  parts:[
+    { goal:"obtiens <b>[noyau]</b> le plus vite possible.", startBuf:"noyau", startCur:2,
+      sols:[['C-a','[','C-e',']','Enter'],['C-e',']','C-a','[','Enter']] },
+    { goal:"obtiens <b>(perdu)</b> le plus vite possible.", startBuf:"perdu",
+      sol:[')','C-a','(','Enter'] },
+    { goal:"obtiens <b>la tension monte</b> le plus vite possible.", startBuf:"tension",
+      sol:[' ','m','o','n','t','e','C-a','l','a',' ','Enter'] },
+  ] },
+
+{ kb:true, bloc:1, title:"Les bornes (BOSS du bloc)",
+  parts:[
+    { goal:"obtiens <b>&lt;perimetre&gt;</b> le plus vite possible.", startBuf:"perimetre", startCur:4,
+      sols:[['C-a','<','C-e','>','Enter'],['C-e','>','C-a','<','Enter']] },
+    { goal:"obtiens <b>acces refuse</b> le plus vite possible.", startBuf:"acces", startCur:2,
+      sol:['C-e',' ','r','e','f','u','s','e','Enter'] },
+    { goal:"obtiens <b>(port ferme)</b> le plus vite possible.", startBuf:"port",
+      sol:[' ','f','e','r','m','e',')','C-a','(','Enter'] },
+  ] },
+
+/* ---------- BLOC C "Couper" : Alt+Retour arrière, Ctrl+U, Ctrl+Y ---------- */
+{ kb:true, bloc:2, title:"Reprise",
+  parts:[
+    { goal:"envoie <b>stock</b>.", sol:['s','t','o','c','k','Enter'] },
+    { goal:"obtiens <b>liste</b> le plus vite possible.", startBuf:"listte", sol:['Left','BS','Enter'] },
+  ] },
+
+{ kb:true, bloc:2, title:"Le mot d'un coup", guide:true,
+  dialogue:["<b>Alt+Retour arrière</b> efface tout le mot avant le curseur : bien plus malin que lettre par lettre.",
+    "(Dans un vrai terminal, <code>Ctrl+W</code> fait pareil. Ici, dans un navigateur, Ctrl+W fermerait l'onglet : on le garde pour plus tard.)"],
+  notes:['mot'],
+  startBuf:"garder ce mot", startCur:0,
+  goal:"Va à la fin, efface le dernier mot d'un coup, remplace-le → <b>garder ce vite</b>.",
+  sol:['C-e','A-BS','v','i','t','e','Enter'] },
+
+{ kb:true, bloc:2, title:"Ménage de mots",
+  parts:[
+    { goal:"obtiens <b>envoi rapport</b> le plus vite possible.", startBuf:"envoi rapport final",
+      sol:['A-BS','Enter'] },
+    { goal:"obtiens <b>statut memoire vide</b> le plus vite possible.", startBuf:"statut memoire pleine",
+      sol:['A-BS','v','i','d','e','Enter'] },
+  ] },
+
+{ kb:true, bloc:2, title:"Couper la ligne", guide:true,
+  dialogue:["<b>Ctrl+U</b> coupe tout jusqu'au début, d'un coup : et le garde en mémoire. Ça va servir."],
+  notes:['couper'],
+  startBuf:"commande fausse",
+  goal:"Toute la ligne est fausse : coupe-la (Ctrl+U), puis écris <b>ls -la</b>.",
+  sol:['C-u','l','s',' ','-','l','a','Enter'] },
+
+{ kb:true, bloc:2, title:"Couper puis coller", guide:true,
+  dialogue:["<b>Ctrl+Y</b> recolle ce que tu viens de couper. Couper + coller : le copier-coller au clavier, sans souris."],
+  notes:['coller'],
+  startBuf:"module",
+  goal:"Coupe la ligne (Ctrl+U) puis recolle-la <b>deux fois</b> (Ctrl+Y, Ctrl+Y) → <b>modulemodule</b>.",
+  sol:['C-u','C-y','C-y','Enter'] },
+
+{ kb:true, bloc:2, title:"L'écho",
+  parts:[
+    { goal:"obtiens <b>fragfrag</b> le plus vite possible.", startBuf:"frag",
+      sols:[['C-u','C-y','C-y','Enter'],['A-BS','C-y','C-y','Enter']] },
+    { goal:"obtiens <b>boucleboucleboucle</b> le plus vite possible.", startBuf:"boucle",
+      sols:[['C-u','C-y','C-y','C-y','Enter'],['A-BS','C-y','C-y','C-y','Enter']] },
+  ] },
+
+{ kb:true, bloc:2, title:"Table rase",
+  parts:[
+    { goal:"obtiens <b>neuf</b> le plus vite possible.", startBuf:"vieux code",
+      sol:['C-u','n','e','u','f','Enter'] },
+    { goal:"obtiens <b>bonne direction</b> le plus vite possible.", startBuf:"mauvaise piste suivie",
+      sol:['C-u','b','o','n','n','e',' ','d','i','r','e','c','t','i','o','n','Enter'] },
+  ] },
+
+{ kb:true, bloc:2, title:"Le grand ménage (BOSS du bloc)",
+  parts:[
+    { goal:"obtiens <b>signal signal</b> le plus vite possible.", startBuf:"signal",
+      sols:[['C-u','C-y',' ','C-y','Enter'],['A-BS','C-y',' ','C-y','Enter']] },
+    { goal:"obtiens <b>nouvelle</b> le plus vite possible.", startBuf:"vieille commande",
+      sol:['C-u','n','o','u','v','e','l','l','e','Enter'] },
+    { goal:"obtiens <b>deux un</b> le plus vite possible.", startBuf:"un deux",
+      sol:['A-BS','C-a','C-y',' ','Enter'] },
+  ] },
+
+/* ---------- BLOC D "La mémoire" : ↑ / ↓ (historique) ---------- */
+{ kb:true, bloc:3, title:"Réflexes",
+  parts:[
+    { goal:"obtiens <b>(zone)</b> le plus vite possible.", startBuf:"zone",
+      sol:[')','C-a','(','Enter'] },
+    { goal:"obtiens <b>fragment fragment</b> le plus vite possible.", startBuf:"fragment",
+      sols:[['C-u','C-y',' ','C-y','Enter'],['A-BS','C-y',' ','C-y','Enter']] },
+  ] },
+
+{ kb:true, bloc:3, title:"Rappelle et retouche", guide:true,
+  dialogue:["<b>↑</b> rappelle une ligne déjà tapée : on la <b>retouche</b> au lieu de tout retaper. Une ligne t'attend déjà dans l'historique."],
+  notes:['historique'],
+  seedHist:["init systeme"],
+  goal:"Rappelle la ligne (↑), efface le dernier mot d'un coup, corrige → <b>init reacteur</b>.",
+  sol:['Up','A-BS','r','e','a','c','t','e','u','r','Enter'] },
+
+{ kb:true, bloc:3, title:"La retouche",
+  seedHist:["git push origin"],
+  parts:[
+    { goal:"obtiens <b>git push main</b> le plus vite possible.",
+      sol:['Up','A-BS','m','a','i','n','Enter'] },
+    { goal:"renvoie <b>la même commande</b>, sans la retaper.",
+      sol:['Up','Enter'] },
+  ] },
+
+{ kb:true, bloc:3, title:"La session",
+  dialogue:["Trois lignes à la suite. L'historique se remplit au fur et à mesure : ce que tu viens d'envoyer se rappelle avec <b>↑</b>."],
+  parts:[
+    { goal:"obtiens <b>retry</b> le plus vite possible.", startBuf:"connexion perdue",
+      sol:['C-u','r','e','t','r','y','Enter'] },
+    { goal:"obtiens <b>(retry)</b> le plus vite possible.",
+      sol:['Up',')','C-a','(','Enter'] },
+    { goal:"obtiens <b>(retry)(retry)</b> le plus vite possible.",
+      sols:[['Up','C-u','C-y','C-y','Enter'],['Up','A-BS','C-y','C-y','Enter']] },
+  ] },
+
+{ kb:true, bloc:3, title:"La synthèse (BOSS du clavier)",
+  seedHist:["deploy"],
+  parts:[
+    { goal:"obtiens <b>deployvieux</b> le plus vite possible.", startBuf:"vieux",
+      sols:[['C-u','Up','C-y','Enter'],['A-BS','Up','C-y','Enter']] },
+    { goal:"obtiens <b>deployvieuxdeployvieux</b> le plus vite possible.",
+      sols:[['Up','C-u','C-y','C-y','Enter'],['Up','A-BS','C-y','C-y','Enter']] },
+    { goal:"obtiens <b>(deployvieux)</b> le plus vite possible.",
+      sol:['Up','Up',')','C-a','(','Enter'] },
+  ] },
+];
+
+/* ================= BLOC 1 : se repérer (15 niveaux) ================= */
+const SHELL=[
+{ title:"La machine répond", guide:true,
+  dialogue:[
+    "La machine a accepté tes mains. Maintenant, sa langue. La ligne du bas, c'est le <b>prompt</b> : <code>joueur@machine:~$</code>. Elle te dit où tu es et attend une <b>commande</b>.",
+    "Une commande = un mot qu'elle connaît, validé par <b>Entrée</b>. La première : <code>pwd</code>, elle affiche l'endroit où tu te trouves.",
+    "Tape <code>pwd</code> puis Entrée."],
+  notes:['prompt','pwd'],
+  goal:"Demande à la machine <b>où tu es</b>.",
+  steps:[ {alts:['pwd']} ] },
+
+{ title:"Regarder autour", guide:true,
+  dialogue:["<code>ls</code> liste ce que contient le dossier où tu es. Tape <code>ls</code> puis Entrée."],
+  notes:['ls'],
+  goal:"Regarde ce qu'il y a <b>autour de toi</b>.",
+  steps:[ {alts:['ls']} ] },
+
+{ title:"L'état des lieux",
+  goal:"Situe-toi, puis regarde autour : tes deux commandes, dans cet ordre.",
+  steps:[ {alts:['pwd']}, {alts:['ls']} ] },
+
+{ title:"Entrer", guide:true,
+  dialogue:["<code>cd</code> te déplace : <code>cd datas</code> entre dans le dossier datas. Regarde le prompt changer avec toi.",
+    "Entre dans <code>datas</code>, puis vérifie où tu es."],
+  notes:['cd'],
+  goal:"Entre dans <b>datas</b> et vérifie ta position.",
+  steps:[ {alts:['cd datas']}, {alts:['pwd']} ] },
+
+{ title:"Fouiller",
+  goal:"Entre dans <b>journaux</b> et liste ce qu'il contient.",
+  steps:[ {alts:['cd journaux']}, {alts:['ls']} ] },
+
+{ title:"Remonter", guide:true,
+  dialogue:["<code>..</code> désigne le dossier <b>parent</b> : <code>cd ..</code> remonte d'un cran."],
+  notes:['parent'], start:['journaux'],
+  goal:"Tu es dans journaux. <b>Remonte</b> d'un cran.",
+  steps:[ {alts:['cd ..']} ] },
+
+{ title:"La descente",
+  goal:"Descends dans <b>datas</b>, puis dans <b>archives</b>, et liste.",
+  steps:[ {alts:['cd datas']}, {alts:['cd archives']}, {alts:['ls']} ] },
+
+{ title:"Le chemin", guide:true,
+  dialogue:["Les dossiers s'enchaînent avec <code>/</code> : <code>cd datas/archives</code> fait les deux plongées en <b>une seule</b> commande."],
+  notes:['chemins'],
+  goal:"Va dans <b>archives</b> en une seule commande.",
+  steps:[ {alts:['cd datas/archives']} ] },
+
+{ title:"Retour maison", guide:true,
+  dialogue:["<code>~</code> désigne ta <b>maison</b> (ton dossier de départ). <code>cd ~</code> t'y ramène d'où que tu sois. Et <code>cd</code> tout seul fait pareil, pratique si <code>~</code> est difficile à taper."],
+  notes:['tilde'], start:['datas','archives'],
+  goal:"Tu es au fond des archives. <b>Rentre à la maison</b> d'une commande.",
+  steps:[ {alts:['cd ~','cd']} ] },
+
+{ title:"L'aller-retour", guide:true,
+  dialogue:["<code>cd -</code> te ramène au dossier <b>précédent</b>. Re-taper <code>cd -</code> re-bascule : l'aller-retour entre deux endroits."],
+  notes:['moins'],
+  goal:"Va dans <b>journaux</b>, rentre à la maison, puis <b>re-bascule</b> d'un coup vers journaux.",
+  steps:[ {alts:['cd journaux']}, {alts:['cd ~','cd']}, {alts:['cd -']} ] },
+
+{ title:"Compléter", guide:true,
+  dialogue:["Personne ne tape les noms en entier : <b>Tab</b> complète. Tape le début d'un nom, appuie sur Tab, la machine finit pour toi.",
+    "Tape <code>cd conf</code> puis <b>Tab</b>, puis Entrée."],
+  notes:['tab'],
+  goal:"Entre dans <b>configuration-systeme</b>… sans taper son nom en entier.",
+  steps:[ {alts:['cd configuration-systeme'], needTab:true, hint:'tape cd conf, puis Tab, puis Entrée'} ] },
+
+{ title:"Se souvenir", guide:true,
+  dialogue:["Tu connais <b>↑</b>. L'historique garde aussi les commandes des <b>sessions passées</b> : une commande t'attend déjà. Rappelle-la et exécute-la."],
+  notes:['historique'], seedHist:['ls journaux'],
+  goal:"Ré-exécute la <b>dernière commande de l'historique</b> sans la retaper.",
+  steps:[ {alts:['ls journaux'], needUp:true, hint:'appuie sur ↑ puis Entrée'} ] },
+
+{ title:"La ronde",
+  goal:"Inspecte <b>datas</b> puis <b>journaux</b> : entre, liste, remonte, entre, liste.",
+  steps:[ {alts:['cd datas']}, {alts:['ls']}, {alts:['cd ..']}, {alts:['cd journaux']}, {alts:['ls']} ] },
+
+{ title:"Le grand écart", start:['datas','archives'],
+  goal:"Depuis le fond des archives : va lister <b>configuration-systeme</b> en une seule commande de déplacement, puis <b>reviens exactement d'où tu viens</b>.",
+  steps:[ {alts:['cd ~/configuration-systeme','cd ../../configuration-systeme']}, {alts:['ls']}, {alts:['cd -']} ] },
+
+{ title:"Le coursier (BOSS du bloc)",
+  goal:"La tournée complète : situe-toi · plonge dans <b>archives</b> en une commande · liste · rentre à la maison · inspecte <b>journaux</b> · remonte.",
+  steps:[ {alts:['pwd']}, {alts:['cd datas/archives']}, {alts:['ls']}, {alts:['cd ~','cd']}, {alts:['cd journaux']}, {alts:['ls']}, {alts:['cd ..']} ] },
+];
+
+SHELL.forEach(L=>L.bloc=4); /* les blocs clavier (0..3) sont déclarés niveau par niveau */
+const LEVELS=KB.concat(SHELL);
+
+/* ================= état & moteur ================= */
+const $=id=>document.getElementById(id);
+let li=0, level=null, errors=0, dlgIdx=-1, lockUntil=0;
+let cwd=[], prev=null, hist=[], histIdx=-1, buf='', cur=0, tabUsed=false, upUsed=false, stepIdx=0;
+let kill='', solPos=0, solCands=[], partIdx=0;
+
+function loadLevel(n, seq){
+  const prevBloc=level?level.bloc:null;
+  li=n; errors=0;
+  level=LEVELS[n];
+  level.freshNotes=unlock(level.notes);
+  const pages=[];
+  if(seq && prevBloc!==null && level.bloc!==prevBloc)
+    pages.push('Tu as résolu <b>'+n+' niveaux sur '+LEVELS.length+'</b> jusqu\'ici. Tu veux continuer ?');
+  if(level.dialogue) pages.push(...level.dialogue);
+  level.dlgPages=pages;
+  dlgIdx=pages.length?0:-1;
+  resetState();
+  $('lvlno').textContent='niveau '+(n+1)+' / '+LEVELS.length;
+  renderDlg(); renderAll();
+  if(!pages.length) flushNoteChips();
+}
+function resetState(){
+  cwd=(level.start||[]).slice(); prev=null;
+  hist=(level.seedHist||[]).slice(); histIdx=-1;
+  kill=''; partIdx=0;
+  tabUsed=false; upUsed=false; stepIdx=0;
+  $('out').innerHTML='';
+  /* la session passée reste à l'écran : l'historique seedé est visible au-dessus du prompt */
+  hist.forEach(l=>print(promptHtml()+esc(l)));
+  initPart();
+}
+function initPart(){
+  const p=(level.kb && level.parts) ? level.parts[partIdx] : level;
+  buf=p.startBuf||''; cur=(p.startCur!==undefined?p.startCur:buf.length);
+  solPos=0; solCands=level.kb?(p.sols||[p.sol]).slice():[];
+  updateGoal();
+}
+function updateGoal(){
+  if(level.kb && level.parts)
+    $('goal').innerHTML='Ligne '+(partIdx+1)+' / '+level.parts.length+' : '+level.parts[partIdx].goal;
+  else $('goal').innerHTML=level.goal||'';
+}
+function flushNoteChips(){
+  (level.freshNotes||[]).forEach(id=>{ const nt=NOTES[id]; if(nt) toast('pense-bête : "'+nt.t+'", touche P'); });
+  level.freshNotes=[];
+}
+
+function promptHtml(){ return '<span class="p">joueur@machine</span>:<span class="path">'+tildePath(cwd)+'</span>$ '; }
+function print(html){ const d=document.createElement('div'); d.innerHTML=html; $('out').appendChild(d); }
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function renderAll(){
+  const before=esc(buf.slice(0,cur));
+  const at=buf[cur]?esc(buf[cur]):'&nbsp;';
+  const after=esc(buf.slice(cur+1));
+  $('pline').innerHTML=promptHtml()+before+'<span id="caret">'+at+'</span>'+after;
+  $('term').scrollTop=$('term').scrollHeight;
+  let dots=''; for(let k=0;k<3;k++) dots+='<span class="'+(k<errors?'on':'')+'">●</span>';
+  $('dots').innerHTML=dots;
+  /* coach */
+  const coach=$('coach');
+  const playing=!$('dlg').classList.contains('show');
+  const seq=solCands[0];
+  if(level.kb && level.guide && playing && seq && solPos<seq.length){
+    const t=seq[solPos];
+    let txt;
+    if(t.length===1){ /* caractère(s) à taper : on montre toute la suite d'un coup */
+      let j=solPos, run='';
+      while(j<seq.length && seq[j].length===1){ run+=seq[j]; j++; }
+      txt='tape : <code>'+esc(run)+'</code>'+(run==='['?' (AltGr+5)':run===']'?' (AltGr+°)':'');
+    }
+    else if(t==='Enter') txt='valide : <b>Entrée</b>';
+    else txt='appuie sur '+tokLabel(t);
+    coach.innerHTML='&#128073; '+txt.charAt(0).toUpperCase()+txt.slice(1);
+    coach.classList.add('show');
+  } else if(!level.kb && level.guide && playing && stepIdx<level.steps.length){
+    const st=level.steps[stepIdx];
+    const t=st.hint ? st.hint : 'tape : <code>'+st.alts[0]+'</code> puis <span class="k">Entrée</span>';
+    coach.innerHTML='&#128073; '+t.charAt(0).toUpperCase()+t.slice(1);
+    coach.classList.add('show');
+  } else coach.classList.remove('show');
+}
+function renderDlg(){
+  const pages=level.dlgPages||[], box=$('dlg');
+  if(dlgIdx>=0 && dlgIdx<pages.length){
+    $('dlgtext').innerHTML=pages[dlgIdx];
+    $('dlgnext').textContent=(dlgIdx<pages.length-1)?'Entrée ▸':'Entrée ▸ jouer';
+    box.classList.add('show');
+  } else {
+    const wasShown=box.classList.contains('show');
+    box.classList.remove('show');
+    if(wasShown){ lockUntil=performance.now()+350; flushNoteChips(); }
+  }
+}
+
+function bubble(t){ const b=$('bubble'); b.innerHTML=t; b.classList.add('show');
+  clearTimeout(bubble._t); bubble._t=setTimeout(()=>b.classList.remove('show'),3600); }
+function toast(t){ bubble('&#128211; '+t); } /* réutilise la bulle, ton neutre */
+
+function fail(msg){
+  errors++;
+  if(errors>=3){ errors=0; resetState(); renderAll(); $('lose').classList.add('show'); return; }
+  bubble('✗ erreur '+errors+'/3 : '+msg);
+  resetState(); renderAll();
+}
+function win(){
+  $('wt').textContent = li===LEVELS.length-1 ? 'Bloc terminé' : 'Niveau réussi';
+  $('wp').textContent = li===LEVELS.length-1 ? 'Tu sais te repérer dans une machine. La suite du terminal arrive bientôt.'
+                                             : '"'+level.title+'"';
+  $('win').classList.add('show');
+}
+
+/* ================= exécution des commandes ================= */
+function lsListing(node){
+  const dirs=[], files=[];
+  Object.keys(node).sort().forEach(k=>{ (typeof node[k]==='object'?dirs:files).push(k); });
+  return dirs.map(d=>'<span class="dir">'+d+'/</span>').concat(files).join('  ');
+}
+function execute(line){
+  /* la commande est déjà validée : on applique ses effets et on affiche sa sortie */
+  const parts=line.split(' ');
+  const cmd=parts[0], arg=parts.slice(1).join(' ');
+  print(promptHtml()+esc(line));
+  if(cmd==='pwd'){ print(esc(fullPath(cwd))); }
+  else if(cmd==='ls'){
+    const segs=arg?resolvePath(arg,cwd):cwd;
+    const node=dirAt(segs||[]);
+    print(lsListing(node));
+  }
+  else if(cmd==='cd'){
+    let target;
+    if(arg==='-'){ target=prev===null?cwd:prev; }
+    else target=resolvePath(arg,cwd);
+    prev=cwd; cwd=target;
+  }
+  hist.push(line); histIdx=-1;
+}
+function validCommand(line){
+  /* teste si la ligne serait valide dans notre mini-shell (pour choisir le bon message d'erreur) */
+  const parts=line.split(' ');
+  const cmd=parts[0], arg=parts.slice(1).join(' ');
+  if(cmd==='pwd') return parts.length===1;
+  if(cmd==='ls'){ if(!arg) return true; const s=resolvePath(arg,cwd); return !!(s&&dirAt(s)); }
+  if(cmd==='cd'){
+    if(!arg||arg==='~') return true;
+    if(arg==='-') return prev!==null;
+    const s=resolvePath(arg,cwd); return !!(s&&dirAt(s));
+  }
+  return false;
+}
+/* ---- bloc clavier : MODE GUIDE strict (touche par touche) ---- */
+const KEYLBL={ Left:'<b>←</b>', Right:'<b>→</b>', Up:'<b>↑</b> (historique)', Down:'<b>↓</b>',
+  BS:'<b>Retour arrière</b>', 'A-BS':'<b>Alt+Retour arrière</b> (le mot d\'un coup)', Del:'<b>Suppr</b>',
+  'C-a':'<b>Ctrl+A</b> (tout début)', 'C-e':'<b>Ctrl+E</b> (toute fin)', 'C-u':'<b>Ctrl+U</b> (couper)',
+  'C-k':'<b>Ctrl+K</b>', 'C-y':'<b>Ctrl+Y</b> (coller)', Enter:'<b>Entrée</b>', Tab:'<b>Tab</b>',
+  Home:'<b>Ctrl+A</b>', End:'<b>Ctrl+E</b>',
+  '[':'<code>[</code> (AltGr+5)', ']':'<code>]</code> (AltGr+°)', ' ':'la barre <b>espace</b>' };
+function tokLabel(t){ return KEYLBL[t] || '<code>'+esc(t)+'</code>'; }
+function eventToken(e){
+  const K=e.key;
+  if(K.length===1){
+    if(e.metaKey) return null;
+    if(e.ctrlKey && !e.altKey){ const k=K.toLowerCase(); return ['a','e','u','k','y'].includes(k)?'C-'+k:null; }
+    return K; /* frappe simple ou AltGr (Ctrl+Alt) */
+  }
+  if(K==='Backspace') return e.altKey?'A-BS':'BS';
+  if(K==='Delete') return 'Del';
+  if(K==='ArrowLeft') return 'Left';
+  if(K==='ArrowRight') return 'Right';
+  if(K==='ArrowUp') return 'Up';
+  if(K==='ArrowDown') return 'Down';
+  if(K==='Home') return 'Home';
+  if(K==='End') return 'End';
+  if(K==='Tab') return 'Tab';
+  if(K==='Enter') return 'Enter';
+  return null; /* Maj, Ctrl seul, F5… : touches neutres, non jugées */
+}
+function applyTok(t){
+  if(t==='Left'){ if(cur>0)cur--; }
+  else if(t==='Right'){ if(cur<buf.length)cur++; }
+  else if(t==='BS'){ if(cur>0){ buf=buf.slice(0,cur-1)+buf.slice(cur); cur--; } }
+  else if(t==='A-BS') killWord();
+  else if(t==='Del'){ if(cur<buf.length) buf=buf.slice(0,cur)+buf.slice(cur+1); }
+  else if(t==='Home'||t==='C-a'){ cur=0; }
+  else if(t==='End'||t==='C-e'){ cur=buf.length; }
+  else if(t==='C-u'){ if(cur>0){ kill=buf.slice(0,cur); buf=buf.slice(cur); cur=0; } }
+  else if(t==='C-k'){ if(cur<buf.length){ kill=buf.slice(cur); buf=buf.slice(0,cur); } }
+  else if(t==='C-y'){ if(kill){ buf=buf.slice(0,cur)+kill+buf.slice(cur); cur+=kill.length; } }
+  else if(t==='Up'){ if(hist.length){ if(histIdx===-1) histIdx=hist.length-1; else if(histIdx>0) histIdx--;
+    buf=hist[histIdx]; cur=buf.length; upUsed=true; } }
+  else if(t==='Down'){ if(histIdx>=0){ histIdx++; if(histIdx>=hist.length){ histIdx=-1; buf=''; } else buf=hist[histIdx]; cur=buf.length; } }
+  else if(t.length===1){ buf=buf.slice(0,cur)+t+buf.slice(cur); cur++; }
+}
+function kbKey(e){
+  let t=eventToken(e);
+  if(t===null) return;
+  e.preventDefault();
+  /* hors leçon, Début/Fin valent Ctrl+A/E (même vitesse) ; les leçons imposent le geste terminal */
+  if(!level.guide){ if(t==='Home')t='C-a'; else if(t==='End')t='C-e'; }
+  const matching=solCands.filter(s=>s[solPos]===t);
+  if(!matching.length){
+    fail(level.guide ? 'mauvaise touche : attendu : '+tokLabel(solCands[0][solPos])+'.'
+                     : 'ce n\'était pas le chemin le plus rapide.');
+    return;
+  }
+  solCands=matching; solPos++;
+  if(t==='Enter'){
+    print(promptHtml()+esc(buf));
+    hist.push(buf); histIdx=-1;
+    buf=''; cur=0;
+    if(level.parts && partIdx<level.parts.length-1){ partIdx++; initPart(); renderAll(); return; }
+    renderAll(); win(); return;
+  }
+  applyTok(t); renderAll();
+}
+function killWord(){
+  if(cur===0) return;
+  let i=cur;
+  while(i>0 && buf[i-1]===' ') i--;
+  while(i>0 && buf[i-1]!==' ') i--;
+  kill=buf.slice(i,cur);
+  buf=buf.slice(0,i)+buf.slice(cur); cur=i;
+}
+function submit(){
+  const line=buf.trim().replace(/\s+/g,' ');
+  buf=''; cur=0;
+  if(!line){ renderAll(); return; }
+  const st=level.steps[stepIdx];
+  const match=st.alts.includes(line);
+  if(match && st.needTab && !tabUsed){ fail('utilise <b>Tab</b> pour compléter le nom ('+st.hint+').'); return; }
+  if(match && st.needUp && !upUsed){ fail('rappelle la commande avec <b>↑</b> au lieu de la retaper.'); return; }
+  if(match){
+    execute(line);
+    stepIdx++; tabUsed=false; upUsed=false;
+    renderAll();
+    if(stepIdx>=level.steps.length) win();
+    return;
+  }
+  /* mauvaise commande : message selon le cas */
+  const parts=line.split(' ');
+  if(!['pwd','ls','cd'].includes(parts[0])){
+    fail('<code>'+esc(parts[0])+'</code> : commande inconnue ici. '+(st.hint||('attendu : <code>'+st.alts[0]+'</code>')));
+  } else if(!validCommand(line)){
+    fail('<code>'+esc(line)+'</code> : ce chemin n\'existe pas d\'ici. '+(st.hint||('attendu : <code>'+st.alts[0]+'</code>')));
+  } else {
+    fail('ce n\'est pas ce que demande le niveau. '+(st.hint||('attendu : <code>'+st.alts[0]+'</code>')));
+  }
+}
+
+/* ================= complétion Tab ================= */
+function complete(){
+  const upto=buf.slice(0,cur);
+  const after=buf.slice(cur);
+  const m=upto.match(/(^|\s)([^\s]*)$/);
+  if(!m) return;
+  const token=m[2];
+  let dirPart='', prefix=token;
+  const slash=token.lastIndexOf('/');
+  if(slash>=0){ dirPart=token.slice(0,slash+1); prefix=token.slice(slash+1); }
+  const baseSegs=dirPart?resolvePath(dirPart.replace(/\/$/,''),cwd):cwd;
+  const node=baseSegs?dirAt(baseSegs):null;
+  if(!node||!prefix) return;
+  const cands=Object.keys(node).filter(k=>k.startsWith(prefix));
+  if(!cands.length) return;
+  let add='';
+  if(cands.length===1){
+    add=cands[0].slice(prefix.length)+(typeof node[cands[0]]==='object'?'':' ');
+  } else {
+    /* plus long préfixe commun */
+    let common=cands[0];
+    for(const c of cands) while(!c.startsWith(common)) common=common.slice(0,-1);
+    add=common.slice(prefix.length);
+  }
+  if(add){ buf=upto+add+after; cur=upto.length+add.length; tabUsed=true; renderAll(); }
+}
+
+/* ================= menus ================= */
+function openPB(){
+  const list=$('pblist'); list.innerHTML='';
+  unlocked.forEach(id=>{ const n=NOTES[id]; if(!n)return;
+    const d=document.createElement('div'); d.className='note';
+    d.innerHTML='<div class="nt">'+n.t+'</div><div class="nb">'+n.b+'</div>'; list.appendChild(d); });
+  $('pbempty').style.display=unlocked.length?'none':'block';
+  $('pb').classList.add('show');
+}
+function openMenu(){
+  const list=$('menulist'); list.innerHTML='';
+  LEVELS.forEach((L,i)=>{
+    const b=document.createElement('button'); b.className='mlvl'+(i===li?' cur':''); b.textContent=(i+1);
+    b.title=L.title;
+    b.onclick=()=>{ $('menu').classList.remove('show'); loadLevel(i); };
+    list.appendChild(b);
+  });
+  $('menu').classList.add('show');
+}
+$('btn-pb').onclick=openPB;
+$('btn-menu').onclick=openMenu;
+
+/* ================= clavier ================= */
+document.addEventListener('keydown',e=>{
+  const K=e.key;
+  /* overlays */
+  if($('pb').classList.contains('show')){ if(K==='p'||K==='P'||K==='Escape'||K==='Enter'){e.preventDefault();$('pb').classList.remove('show');} return; }
+  if($('menu').classList.contains('show')){ if(K==='m'||K==='M'||K==='Escape'){e.preventDefault();$('menu').classList.remove('show');} return; }
+  if($('win').classList.contains('show')){
+    if(K==='Enter'){ e.preventDefault(); $('win').classList.remove('show'); if(li<LEVELS.length-1) loadLevel(li+1,true); else loadLevel(0); }
+    return;
+  }
+  if($('lose').classList.contains('show')){
+    if(K==='Enter'){ e.preventDefault(); $('lose').classList.remove('show'); lockUntil=performance.now()+350; }
+    return;
+  }
+  if($('dlg').classList.contains('show')){
+    if(K==='Enter'){ e.preventDefault(); dlgIdx++; renderDlg(); renderAll(); }
+    return;
+  }
+  if(K==='Escape'){ e.preventDefault(); openMenu(); return; }
+  if(e.isTrusted && performance.now()<lockUntil) return;
+
+  /* P / M : pense-bête & menu : sauf quand la lettre est attendue en saisie (garde S1) */
+  if(!e.ctrlKey && !e.altKey && !e.metaKey && (K==='p'||K==='P'||K==='m'||K==='M')){
+    const ch=K.toLowerCase();
+    const newBuf=buf.slice(0,cur)+ch+buf.slice(cur);
+    const wanted = level.kb
+      ? solCands.some(s=>s[solPos]===ch)
+      : !!(level.steps[stepIdx] && level.steps[stepIdx].alts.some(a=>a.startsWith(newBuf)));
+    if(!wanted){ e.preventDefault(); if(ch==='p') openPB(); else openMenu(); return; }
+  }
+
+  /* bloc clavier : mode guide strict, touche par touche */
+  if(level.kb){ kbKey(e); return; }
+
+  if(K==='Enter'){ e.preventDefault(); submit(); return; }
+  if(K==='Backspace'){ e.preventDefault();
+    if(e.altKey) killWord();
+    else if(cur>0){ buf=buf.slice(0,cur-1)+buf.slice(cur); cur--; }
+    renderAll(); return; }
+  if(K==='Delete'){ e.preventDefault(); if(cur<buf.length){ buf=buf.slice(0,cur)+buf.slice(cur+1); renderAll(); } return; }
+  if(K==='ArrowLeft'){ e.preventDefault(); if(cur>0)cur--; renderAll(); return; }
+  if(K==='ArrowRight'){ e.preventDefault(); if(cur<buf.length)cur++; renderAll(); return; }
+  if(K==='Home'){ e.preventDefault(); cur=0; renderAll(); return; }
+  if(K==='End'){ e.preventDefault(); cur=buf.length; renderAll(); return; }
+  if(K==='Tab'){ e.preventDefault(); complete(); return; }
+  if(K==='ArrowUp'){ e.preventDefault();
+    if(hist.length){ if(histIdx===-1) histIdx=hist.length-1; else if(histIdx>0) histIdx--;
+      buf=hist[histIdx]; cur=buf.length; upUsed=true; renderAll(); } return; }
+  if(K==='ArrowDown'){ e.preventDefault();
+    if(histIdx>=0){ histIdx++; if(histIdx>=hist.length){ histIdx=-1; buf=''; } else buf=hist[histIdx]; cur=buf.length; renderAll(); } return; }
+  /* raccourcis readline (Ctrl seul : AltGr = Ctrl+Alt, traité comme un caractère plus bas) */
+  if(e.ctrlKey && !e.altKey && !e.metaKey && K.length===1){
+    const k=K.toLowerCase();
+    if(['a','e','u','k','y'].includes(k)){ e.preventDefault(); applyTok('C-'+k); renderAll(); }
+    return; /* les autres Ctrl+x restent au navigateur, jamais tapés */
+  }
+  /* caractères imprimables (AltGr sur AZERTY envoie Ctrl+Alt : accepté) */
+  if(K.length===1 && !e.metaKey && (!e.ctrlKey || e.altKey)){
+    e.preventDefault();
+    buf=buf.slice(0,cur)+K+buf.slice(cur); cur++;
+    renderAll();
+  }
+});
+
+/* clic dans le terminal = focus implicite (tout est global), rien à faire */
+loadLevel(0);
+</script>
