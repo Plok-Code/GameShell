@@ -64,9 +64,9 @@
   <div id="restored"></div>
 
   <div class="q fields">
-    <span><label>Testeur / testeuse</label><input type="text" id="who"></span>
+    <span><label>Testeur</label><input type="text" id="who"></span>
     <span><label>N° de test</label><input type="text" id="num"></span>
-    <span><label>Version (commit)</label><input type="text" id="ver"></span>
+    <span><label>Version</label><input type="text" id="ver"></span>
   </div>
 
   <div class="q bar">
@@ -79,13 +79,13 @@
   </div>
 
   <div class="q actions">
-    <button class="pos" data-ev="déclic (comprend seule)" title="Elle pige une mécanique sans qu'on lui dise : ahh d'accord !. LE signal clé de ce test (déduire sans carton).">Déclic (comprend seule)</button>
+    <button class="pos" data-ev="déclic (comprend seule)" title="Elle pige une mécanique sans qu'on lui dise : ahh d'accord !. LE signal clé de ce test (déduire sans carton).">Déclic</button>
     <button class="pos" data-ev="réaction positive" title="Plaisir : sourire, cool, c'est satisfaisant.">Réaction positive</button>
     <button class="neg" data-ev="erreur" title="Une erreur = la bulle rouge d'erreur du jeu.">Erreur</button>
     <button class="neg" data-ev="game over" title="3 erreurs : le niveau recommence.">Game over</button>
     <button class="neg" data-ev="hésitation longue" title="Bloquée ~10 s ou plus sans agir, OU elle dit tout haut qu'elle est coincée.">Hésitation longue</button>
     <button class="neg" data-ev="signe d'ennui" title="Soupir, c'est long, déconcentration, regarde ailleurs.">Signe d'ennui</button>
-    <button class="neg" data-ev="critique / négatif" title="Avis négatif sur le jeu (c'est mal foutu, chiant). Tape la phrase exacte en note.">Critique / négatif</button>
+    <button class="neg" data-ev="critique / négatif" title="Avis négatif sur le jeu (c'est mal foutu, chiant). Tape la phrase exacte en note.">Critique</button>
     <button class="neg" data-ev="veut arrêter" title="Elle parle d'arrêter / décroche. Le décrochage = le problème n°1 à traquer.">Veut arrêter</button>
     <button class="neu" data-ev="question / aide" title="Elle demande QUOI faire ou COMMENT ça marche (besoin d'aide pour avancer). ≠ un avis.">Question / aide</button>
     <button class="neu" data-ev="pense-bête ouvert" title="Elle ouvre le pense-bête (touche P) : elle se sert du filet.">Pense-bête ouvert</button>
@@ -93,21 +93,21 @@
   </div>
   <div class="q twoin">
     <div>
-      <label>Citation (ce qu'elle dit) · Entrée pour horodater</label>
-      <input type="text" id="cite" placeholder="…">
+      <label>Citation</label>
+      <input type="text" id="cite" placeholder="…" title="Ce qu'elle dit, mot pour mot. Entrée pour horodater.">
     </div>
     <div>
-      <label>Note (ton observation) · Entrée pour horodater</label>
-      <input type="text" id="note" placeholder="…">
+      <label>Note libre</label>
+      <input type="text" id="note" placeholder="…" title="Ton observation à toi. Entrée pour horodater.">
     </div>
   </div>
 
   <div class="q"><table id="log"></table></div>
 
   <div class="q bar">
-    <button id="download" style="border-color:var(--ok);color:var(--ok)">Télécharger (.txt)</button>
-    <button id="export">Copier</button>
-    <button id="reset" style="border-color:#5c2333;color:#c98a97;margin-left:auto" title="Efface toute la session">Effacer</button>
+    <button id="download" style="border-color:var(--ok);color:var(--ok)" title="Télécharge le rapport en fichier .txt">Télécharger</button>
+    <button id="export" title="Copie le rapport dans le presse-papier">Copier</button>
+    <button id="reset" style="border-color:#5c2333;color:#c98a97;margin-left:auto" title="Efface toute la session en cours">Nouvelle session</button>
   </div>
   <textarea id="out" placeholder="aperçu du rapport"></textarea>
 
