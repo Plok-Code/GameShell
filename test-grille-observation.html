@@ -34,8 +34,6 @@
   .actions .neg{border-left:3px solid var(--err)}
   .actions .pos{border-left:3px solid var(--ok)}
   .actions .neu{border-left:3px solid var(--vio)}
-  .legend{font-size:11.5px;line-height:1.55;color:var(--faint);margin:8px 2px 0}
-  .legend b{color:var(--dim)}
   .twoin{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:560px){.twoin{grid-template-columns:1fr}}
   #cite{border-left:2px solid var(--cyan)}
@@ -48,24 +46,7 @@
   #log td.x button{padding:1px 8px;font-size:11px;color:var(--faint)}
   #out{width:100%;min-height:180px;background:#0e1020;border:1px solid #2a2d44;border-radius:8px;
     color:var(--dim);font-family:inherit;font-size:11.5px;padding:10px;margin-top:8px}
-  .foot{margin-top:20px;color:var(--faint);font-size:11px;line-height:1.6}
-  /* aide-mémoire de conduite de session */
-  .guide .ph{color:var(--cyan);font-weight:600;font-size:12.5px;margin:12px 0 4px;letter-spacing:.02em}
-  .guide .ph:first-child{margin-top:0}
-  .guide .mic{background:#0e1a22;border-left:3px solid var(--gold);border-radius:6px;padding:8px 11px;margin:8px 0;color:#f0e2c0;font-size:12.5px;line-height:1.5}
-  .guide ul{margin:4px 0 0;padding-left:18px}
-  .guide li{margin-bottom:5px;font-size:12.5px;line-height:1.5;color:var(--txt)}
-  .guide .say{color:var(--ok)}
-  details.traps{margin-top:14px;background:#12131f;border:1px solid var(--line);border-radius:12px;padding:0}
-  details.traps summary{cursor:pointer;padding:14px 16px;color:var(--err);font-size:13px;font-weight:600;list-style:none}
-  details.traps summary::-webkit-details-marker{display:none}
-  details.traps summary::before{content:"▸ ";color:var(--err)}
-  details.traps[open] summary::before{content:"▾ "}
-  details.traps .body{padding:0 16px 14px}
-  .trap{margin:9px 0;font-size:12.5px;line-height:1.5}
-  .trap b{color:#ffb3c0}
-  .trap .rep{color:var(--ok)}
-  /* indicateur d'enregistrement, bien visible */
+  /* indicateur d'enregistrement */
   #saveline{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);margin:14px 0 4px}
   #savedot{width:9px;height:9px;border-radius:50%;background:#2a2d44;flex:none}
   #saveline.saved #savedot{background:var(--ok);box-shadow:0 0 8px #41d68a88}
@@ -78,108 +59,23 @@
 </style>
 
 <div id="app">
-  <h1>Grille d'observation · session modérée</h1>
-  <div class="sub">Un clic = un fait horodaté au niveau courant. Chaque action est enregistrée
-    automatiquement (voir l'indicateur ci-dessous, et ça survit au rechargement). En fin de session,
-    <b>télécharge le rapport en fichier</b> pour ne rien perdre.</div>
-  <div id="saveline"><span id="savedot"></span><span id="savetxt">rien à enregistrer pour l'instant</span></div>
+  <h1>Grille d'observation</h1>
+  <div id="saveline"><span id="savedot"></span><span id="savetxt">prêt</span></div>
   <div id="restored"></div>
 
   <div class="q fields">
     <span><label>Testeur / testeuse</label><input type="text" id="who"></span>
     <span><label>N° de test</label><input type="text" id="num"></span>
-    <span><label>Version testée (commit)</label><input type="text" id="ver"></span>
-  </div>
-
-  <div class="q guide">
-    <div class="mic"><b>Micro : muté par défaut, push-to-talk.</b> Dé-mute uniquement pour une
-      relance neutre ou un bug bloquant. Muté = aucune réaction involontaire (soupir, "hmm",
-      rire) ne fuit. À dire au brief : "je reste muet pendant que tu joues, sauf pour te rappeler
-      de penser à voix haute".</div>
-
-    <div class="ph">Phase 1 · Le brief (micro ouvert, ambiance détendue)</div>
-    <ul>
-      <li><span class="say">"T'inquiète, on ne teste pas tes compétences · le jeu n'est pas fini,
-        rien n'est calé. Si tu galères, c'est le jeu qui déconne, pas toi."</span></li>
-      <li><span class="say">"Le plus utile pour moi, c'est que tu dises tout ce qui te passe par la
-        tête, à voix haute, même les trucs négatifs. Franchement, tu peux pas me vexer."</span></li>
-      <li><span class="say">"Par contre je vais faire le mort pendant que tu joues, je répondrai
-        pas à tes questions : c'est le jeu qui doit tout t'expliquer tout seul, c'est ça que je
-        teste. Fais comme si j'étais pas là."</span></li>
-      <li>Confirme l'accord d'enregistrement. Lance l'enregistrement ET clique "Démarrer la
-        session" <b>en même temps</b> (pour aligner les timecodes).</li>
-    </ul>
-
-    <div class="ph">Phase 2 · Elle joue (muté, tu observes)</div>
-    <ul>
-      <li>Tu notes, tu ne réagis pas au contenu · même pas un "ah oui" ou un petit rire, c'est ça
-        qui la biaiserait le plus. Ton silence, c'est juste "je te donne pas mon avis", pas un
-        mur : reste chaleureux dans le peu que tu dis.</li>
-      <li>Ce que tu peux dire (dé-mute puis re-mute) : <span class="say">"continue, dis-moi ce que
-        tu penses"</span> · si elle demande quoi faire : <span class="say">"ah, qu'est-ce que TOI
-        tu ferais ?"</span></li>
-      <li>Si elle balance un avis en pêchant ton accord ("c'est mal foutu, non ?") :
-        <span class="say">"haha j'ai pas le droit de répondre là · mais vas-y, dis-moi ce qui te
-        gêne"</span>. Tu la fais parler sans juger, tu notes, tu creuses au débrief.</li>
-      <li>Bug qui bloque : tu le notes, tu débloques, tu le signales. Unique cas d'intervention.</li>
-    </ul>
-
-    <div class="ph">Phase 3 · Le débrief (micro ouvert, tu peux souffler)</div>
-    <ul>
-      <li>Commence large et ouvert : "alors, raconte-moi ta session". Puis avec tes timecodes :
-        "à 04:30, au niveau 22, tu as hésité un moment · tu te souviens de ce qui se passait dans
-        ta tête ?".</li>
-      <li>Évite les questions qui soufflent la réponse ("t'aurais préféré que…") : laisse-la venir
-        d'elle-même. Ensuite le questionnaire.</li>
-      <li>Et à la fin, le clin d'œil qui lui fera plaisir : "et toi, t'as des retours sur ma façon
-        de mener le test ?"</li>
-    </ul>
-
-    <details class="traps">
-      <summary>Les pièges qu'elle va tendre (elle audite TON protocole) · déplier</summary>
-      <div class="body">
-        <div class="trap"><b>"Je fais quoi là ? / c'est bon ?"</b> <span class="rep">→ ne donne pas
-          la solution : "qu'est-ce que TOI tu penses ?". Et note-le : demander de l'aide = une
-          donnée.</span></div>
-        <div class="trap"><b>Elle se tait</b> <span class="rep">→ relance neutre, rien de plus.</span></div>
-        <div class="trap"><b>Elle pêche ton approbation ("c'est nul hein ?")</b> <span class="rep">→
-          "il n'y a pas de bonne réponse, dis-moi juste ce que tu penses". Ne valide aucune
-          supposition.</span></div>
-        <div class="trap"><b>Affirmation à charge ("ce niveau est mal foutu, non ?")</b>
-          <span class="rep">→ sur le coup : <span class="say">"haha j'ai pas le droit de répondre -
-          mais vas-y, qu'est-ce qui te gêne ?"</span>. Tu n'approuves pas, tu ne défends pas, tu la
-          fais parler. Le vrai "pourquoi" se creuse au débrief.</span></div>
-        <div class="trap"><b>Elle joue "mal" exprès / fait un truc inattendu</b> <span class="rep">→
-          ne conclus pas "elle a pas compris". Note, demande POURQUOI au débrief.</span></div>
-        <div class="trap"><b>Question dont la réponse est dans le jeu ("c'est quoi une variable ?")</b>
-          <span class="rep">→ tu n'enseignes rien. C'est au jeu de le faire, c'est ce que tu
-          mesures.</span></div>
-        <div class="trap"><b>Elle engage la conversation ("t'as mis combien de temps ?")</b>
-          <span class="rep">→ chaleureux mais ferme : "on en parle au débrief, là je te laisse
-          jouer".</span></div>
-        <div class="trap"><b>Elle te coupe pour un feedback en plein jeu</b> <span class="rep">→ note,
-          "continue", creuse au débrief (ne casse pas le flux).</span></div>
-        <div class="trap"><b>Elle t'encense ("c'est génial")</b> <span class="rep">→ ne te laisse
-          pas gonfler. Au débrief, va chercher le négatif : "qu'est-ce qui t'a le plus
-          agacée ?".</span></div>
-        <div class="trap"><b>Elle se dévalorise ("je suis trop bête")</b> <span class="rep">→
-          "non, c'est le jeu qui n'est pas clair, pas toi".</span></div>
-        <div class="trap"><b>Elle teste si tu as des données ("tu te souviens où j'ai bloqué ?")</b>
-          <span class="rep">→ ta grille et l'enregistrement répondent, timecodes à l'appui.</span></div>
-        <div class="trap" style="border-top:1px dashed #232538;padding-top:9px"><b>Règle d'or :</b>
-          <span class="rep">dans le doute, tu NOTES et tu demandes "pourquoi" au débrief · jamais
-          sur le moment.</span></div>
-      </div>
-    </details>
+    <span><label>Version (commit)</label><input type="text" id="ver"></span>
   </div>
 
   <div class="q bar">
-    <button id="start">Démarrer la session</button>
+    <button id="start">Démarrer</button>
     <button id="end" title="Fige l'heure de fin et arrête le chrono.">Terminer</button>
     <span id="clock">00:00</span>
-    <span id="lvlbox"><label style="display:inline">niveau courant</label>
+    <span id="lvlbox"><label style="display:inline">niveau</label>
       <button id="lvldown">−</button><input id="lvl" value="1"><button id="lvlup">+</button></span>
-    <span style="margin-left:auto"><button id="undo">Annuler la dernière entrée</button></span>
+    <span style="margin-left:auto"><button id="undo" title="Annuler la dernière entrée">Annuler</button></span>
   </div>
 
   <div class="q actions">
@@ -195,33 +91,26 @@
     <button class="neu" data-ev="pense-bête ouvert" title="Elle ouvre le pense-bête (touche P) : elle se sert du filet.">Pense-bête ouvert</button>
     <button class="neu" data-ev="bug" title="Comportement anormal du jeu.">Bug</button>
   </div>
-  <div class="legend">Survole un bouton pour sa définition. <b>"Question / aide"</b> = elle a besoin
-    d'aide pour avancer ; un avis comme "c'est mal foutu, non ?" n'est PAS une question →
-    <b>"Critique"</b> + tape la phrase exacte en note. <b>"Déclic"</b> (comprend seule) est le
-    bouton le plus important : c'est ce que ce test cherche à mesurer.</div>
-
   <div class="q twoin">
     <div>
-      <label>Citation · ce qu'ELLE dit, mot pour mot (Entrée pour horodater)</label>
+      <label>Citation (ce qu'elle dit) · Entrée pour horodater</label>
       <input type="text" id="cite" placeholder="…">
     </div>
     <div>
-      <label>Note libre · TON observation à toi (Entrée pour horodater)</label>
-      <input type="text" id="note" placeholder="ce que tu remarques…">
+      <label>Note (ton observation) · Entrée pour horodater</label>
+      <input type="text" id="note" placeholder="…">
     </div>
   </div>
 
   <div class="q"><table id="log"></table></div>
 
   <div class="q bar">
-    <button id="download" style="border-color:var(--ok);color:var(--ok)">Télécharger le rapport (.txt)</button>
-    <button id="export">Copier le rapport</button>
-    <button id="reset" style="border-color:#5c2333;color:#c98a97;margin-left:auto">Nouvelle session (tout effacer)</button>
+    <button id="download" style="border-color:var(--ok);color:var(--ok)">Télécharger (.txt)</button>
+    <button id="export">Copier</button>
+    <button id="reset" style="border-color:#5c2333;color:#c98a97;margin-left:auto" title="Efface toute la session">Effacer</button>
   </div>
-  <textarea id="out" placeholder="le rapport exporté s'affiche aussi ici (aperçu)"></textarea>
+  <textarea id="out" placeholder="aperçu du rapport"></textarea>
 
-  <div class="foot">Rappel : une session modérée sert à observer et auditer le protocole · les
-    données d'une pro du jeu vidéo ne comptent PAS dans le panel des testeurs cibles.</div>
 </div>
 
 <script>
