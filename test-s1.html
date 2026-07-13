@@ -110,9 +110,23 @@
   .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 32px;text-align:center;max-width:430px}
   .card h2{margin:0 0 6px;color:var(--ok);font-size:21px}
   .card h2.bad{color:var(--err);letter-spacing:.08em}
-  #lose .card{border-color:#5c2333}
+  #lose .card{border-color:#5c2333;max-width:460px}
   .card p{color:var(--dim);font-size:13px;line-height:1.5;margin:0}
   .card .go{margin-top:14px;color:var(--cyan);font-size:13px}
+  /* boutons d'aide opt-in sur l'écran de game over */
+  #loseaids{display:flex;flex-direction:column;gap:8px;margin:14px 0 4px}
+  #loseaids:empty{margin:0}
+  .aidbtn{background:#0e1a22;border:1px solid #1d4a5a;border-left:3px solid var(--cyan);border-radius:9px;
+    color:#d8f4fb;font-family:inherit;font-size:12.5px;padding:9px 12px;cursor:pointer;line-height:1.4;text-align:left}
+  .aidbtn:hover{border-color:var(--cyan);background:#12242e}
+  .aidbtn.on{background:#0e2418;border-color:var(--ok);border-left-color:var(--ok);color:#c8f5da;cursor:default}
+  .aidbtn b{color:var(--cyan)} .aidbtn.on b{color:var(--ok)}
+  /* coach (coup de pouce, premiers niveaux) */
+  #coach{display:none;margin-top:14px;background:#0e1a22;border:1px solid #1d4a5a;border-left:3px solid var(--cyan);
+    border-radius:10px;padding:10px 15px;font-size:13px;line-height:1.5;color:#d8f4fb}
+  #coach.show{display:block}
+  #coach code,#coach b{color:var(--cyan);font-family:inherit}
+  #coach .k{display:inline-block;background:#0e1020;border:1px solid #2a2d44;border-radius:5px;padding:0 6px;color:#eaf0ff}
   /* pense-bête */
   #pb .card{max-width:580px;text-align:left;max-height:82vh;overflow-y:auto}
   #pb h2{color:var(--vio);font-size:16px;letter-spacing:.06em}
@@ -131,6 +145,7 @@
     <div class="box" id="gridbox"><div id="grid"></div><div id="varsp"></div></div>
     <div class="box" id="progbox"><pre id="code"></pre></div>
   </div>
+  <div id="coach"></div>
   <footer>
     <span style="margin-left:auto"><a href="test-feedback.html" target="_blank" style="color:var(--dim);text-decoration:none">donner mon avis</a></span>
   </footer>
@@ -143,7 +158,7 @@
 <div id="chips"></div>
 <div id="bubble"></div>
 <div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div class="go">Entrée ▸</div></div></div>
-<div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p id="losep">3 erreurs. On reprend le niveau du début.</p><div class="go">Entrée ▸ recommencer</div></div></div>
+<div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p id="losep"></p><div id="loseaids"></div><div class="go">Entrée ▸ recommencer</div></div></div>
 <div class="ov" id="pb"><div class="card"><h2>Pense-bête</h2><div id="pblist"></div><div id="pbempty">Rien encore : les notions s'ajoutent au fil du jeu.</div><div id="pbclose">P ou Échap pour fermer</div></div></div>
 
 <script>
@@ -1144,7 +1159,10 @@ let tut=null;
 const PB_INTRO=4;   /* index du niveau qui introduit le pense-bête : pas de chips avant */
 const HL_OFF=14;    /* dès ce niveau, la ligne courante n'est plus surlignée (sauf tutoriel scripté, ou après un game over) */
 const LIRE_INDEX=LEVELS.findIndex(l=>l.title==='Lire');   /* à partir d'ici : rappel du pense-bête au 1er game over */
-let gameovers=0;    /* game overs sur le niveau en cours : 1 = surlignage rallumé, 2+ = variables affichées en plus */
+let gameovers=0;    /* game overs sur le niveau en cours (débloque les aides progressivement) */
+/* aides opt-in choisies au game over, actives jusqu'à la fin du niveau : afficher les variables,
+   surligner la ligne courante, coup de pouce (coach) pour les premiers niveaux */
+let aidVars=false, aidLines=false, aidGuide=false;
 const KEYLBL={ArrowRight:'→',ArrowLeft:'←',ArrowUp:'↑',ArrowDown:'↓',Enter:'Entrée',p:'P'};
 function dlgPagesActive(){ return dlgIdx>=0 && level && level.dlgPages && dlgIdx<level.dlgPages.length; }
 function tutStep(){ return (tut && !dlgPagesActive()) ? tut.steps[tut.i] : null; }
@@ -1173,7 +1191,7 @@ function normCells(cells){ return cells.map(row=>row.map(c=>{
 
 function loadLevel(n, seq){
   const prevBloc = level ? level.def.bloc : null;
-  li=n; errors=0; gameovers=0;
+  li=n; errors=0; gameovers=0; aidVars=false; aidLines=false; aidGuide=false;
   const L=LEVELS[n];
   level={def:L, ...compile(L.prog)};
   level.freshNotes = unlock(L.notes);
@@ -1308,15 +1326,15 @@ function render(){
   /* panneau des boîtes (échafaudage) */
   const vp=$('varsp'); vp.innerHTML='';
   const names=Object.keys(G.vars);
-  if((L.showVars || gameovers>=2) && names.length){
+  if((L.showVars || aidVars) && names.length){
     const lab=document.createElement('span'); lab.className='vlabel'; lab.textContent='variables'; vp.appendChild(lab);
     names.forEach(n=>{ const d=document.createElement('span'); d.className='vchip';
       if(st&&st.vars) d.classList.add('tut');
       d.innerHTML=n+' = <b>'+fmt(G.vars[n])+'</b>'; vp.appendChild(d); });
     vp.classList.add('show');
   } else vp.classList.remove('show');
-  /* programme ; dès HL_OFF, la position n'est plus montrée (sauf tutoriel scripté, ou après un game over) */
-  const showCur = li<HL_OFF || !!L.tuto || gameovers>0;
+  /* programme ; dès HL_OFF la position n'est plus montrée (sauf tutoriel scripté, ou aide "lignes" activée) */
+  const showCur = li<HL_OFF || !!L.tuto || aidLines;
   const code=$('code'); code.innerHTML='';
   level.lines.forEach((ln,lnIdx)=>{
     const el=document.createElement('span'); el.className='cl';
@@ -1340,6 +1358,21 @@ function render(){
   let eh='erreurs <b>'+errors+'/3</b>';
   for(let k=0;k<3;k++) eh+='<span class="dot'+(k<errors?' on':'')+'"></span>';
   const eb=$('errs'); eb.innerHTML=eh; eb.classList.toggle('bad', errors>0);
+  /* coup de pouce (aide "guide") : décrit l'action attendue, hors dialogue/overlay */
+  const coach=$('coach');
+  if(aidGuide && !dlgPagesActive() && !$('win').classList.contains('show') && !$('lose').classList.contains('show')){
+    const t=coachText(); if(t){ coach.innerHTML=t; coach.classList.add('show'); } else coach.classList.remove('show');
+  } else coach.classList.remove('show');
+}
+/* description de l'action attendue : guide sans donner la séquence complète */
+function coachText(){
+  const c0=cur(); if(!c0||c0.type==='end') return '';
+  if(c0.type==='call'&&G.sub>0) return 'Continue : encore des pressions de <span class="k">'+ARROW[KEYOF[c0.name]]+'</span>.';
+  const res=resolveFrom(G.pc,-1); if(!res.ins||res.ins.type==='end') return '';
+  const ins=res.ins;
+  if(ins.type==='call') return 'La ligne surlignée déplace la sonde : appuie sur <span class="k">'+ARROW[KEYOF[ins.name]]+'</span>.';
+  if(ins.type==='write') return 'La ligne surlignée grave une valeur : à toi de la taper au clavier.';
+  return '';
 }
 
 function chip(text){
@@ -1352,20 +1385,39 @@ function bubble(t){ const b=$('bubble'); b.innerHTML=t; b.classList.add('show');
 function ok(){ G.steps++; runFree(); render(); const c=cur(); if(c&&c.type==='end') checkWin(); }
 function fail(msg){
   errors++;
-  if(errors>=3){ errors=0; gameovers++; resetState(); render();
-    const aides=[];
-    if(li>=HL_OFF&&!level.def.tuto) aides.push('les lignes du programme surlignées');
-    if(gameovers>=2) aides.push('les variables affichées');
-    let m='3 erreurs. On reprend le niveau du début'+(aides.length?', avec '+aides.join(' et '):'')+'.';
-    /* à partir de Lire, au PREMIER game over du niveau : on rappelle le pense-bête */
-    if(li>=LIRE_INDEX && gameovers===1)
-      m+='<br>N\'hésite pas à ouvrir le pense-bête avec la touche <b>P</b> pour revoir les notions.';
-    $('losep').innerHTML=m;
+  if(errors>=3){ errors=0; gameovers++; resetState(); buildLoseScreen(); render();
     $('lose').classList.add('show'); return; }
   resetState();
   bubble('✗ erreur '+errors+'/3 : '+msg);
   render();
   const eb=$('errs'); eb.classList.remove('flash'); void eb.offsetWidth; eb.classList.add('flash');
+}
+/* aides opt-in : au game over, on PROPOSE (boutons) au lieu d'imposer.
+   1re aide = les variables (débloquée au 1er game over) · 2e aide = le surlignage (au 2e).
+   Une aide n'est proposée que si elle n'est pas déjà active par défaut sur ce niveau.
+   Premiers niveaux (lignes déjà surlignées) : un "coup de pouce" à la place. */
+function buildLoseScreen(){
+  const L=level.def, box=$('loseaids'); box.innerHTML='';
+  let m='Retente ta chance.';
+  if(li>=LIRE_INDEX) m+=' <span style="color:var(--faint)">Tu peux aussi ouvrir le pense-bête (touche P).</span>';
+  $('losep').innerHTML=m;
+  const hasVars = level.instrs.some(i=>i.type==='stmt');          /* le niveau manipule des variables */
+  const canVars = !L.showVars && hasVars;                          /* variables pas déjà affichées */
+  const canLines = li>=HL_OFF;                                     /* lignes pas déjà surlignées (hors tuto, impossible ici) */
+  const early = li<HL_OFF;                                         /* premiers niveaux : coup de pouce */
+  function addBtn(label,active,onActivate){
+    const b=document.createElement('button'); b.className='aidbtn'+(active?' on':'');
+    b.innerHTML=label; if(!active) b.onclick=onActivate; box.appendChild(b);
+  }
+  if(canVars)
+    addBtn(aidVars?'Variables affichées ✓ <b>(retente maintenant)</b>':'Aide : <b>afficher les variables</b> sous la grille',
+      aidVars, ()=>{ aidVars=true; buildLoseScreen(); render(); });
+  if(canLines && gameovers>=2)
+    addBtn(aidLines?'Ligne en cours surlignée ✓ <b>(retente maintenant)</b>':'Aide : <b>surligner la ligne en cours</b>',
+      aidLines, ()=>{ aidLines=true; buildLoseScreen(); render(); });
+  if(early)
+    addBtn(aidGuide?'Coup de pouce activé ✓ <b>(retente maintenant)</b>':'Aide : <b>un coup de pouce</b> pour t\'orienter',
+      aidGuide, ()=>{ aidGuide=true; buildLoseScreen(); render(); });
 }
 function checkWin(){
   if(tut) return;   /* niveau scripté : c'est le tutoriel qui gère la fin (dialogue puis niveau suivant) */
@@ -1452,7 +1504,7 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if($('lose').classList.contains('show')){
-    if(K==='Enter'){ e.preventDefault(); $('lose').classList.remove('show'); lockUntil=performance.now()+350; }
+    if(K==='Enter'){ e.preventDefault(); $('lose').classList.remove('show'); lockUntil=performance.now()+350; render(); }
     return;
   }
   if($('dlg').classList.contains('show')){
