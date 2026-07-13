@@ -427,10 +427,10 @@ const LEVELS = [
   win:s=>s.r===2&&s.c===2 },
 
 { bloc:2, title:"Lire",
-  dlgSpot:['grid','prog'],
-  dialogue:["Les secteurs contiennent désormais des <b>valeurs</b>.",
-    "<code>lire()</code> <b>renvoie</b> la valeur écrite dans le secteur où tu es positionné : <code>x = lire()</code> la range dans la variable x.",
-    "Pour t'aider au début, <b>les variables restent affichées sous la grille</b>."],
+  dialogue:[
+    {say:"Les secteurs contiennent désormais des <b>valeurs</b>.", spot:['grid']},
+    {say:"<code>lire()</code> <b>renvoie</b> la valeur écrite dans le secteur où tu es positionné : <code>x = lire()</code> la range dans la variable x.", spot:['grid','prog'], probe:true, line:0},
+    {say:"Pour t'aider au début, <b>les variables restent affichées sous la grille</b>.", spot:['grid'], vars:true}],
   notes:['lire'], showValues:true, showVars:true,
   cells:[[3,2,0,4],[0,0,0,0]], start:[0,0], target:[0,3],
   prog:[ read('x'),
@@ -468,9 +468,9 @@ const LEVELS = [
   win:s=>s.r===1&&s.c===1 },
 
 { bloc:2, title:"Écrire",
-  dlgSpot:['grid','prog'],
-  dialogue:["<code>ecrire(…)</code> grave une valeur dans le secteur où tu es positionné. C'est <b>toi qui dois la taper</b> au clavier.",
-    "Le code peut aussi donner la valeur <b>en dur</b> : <code>ecrire(7)</code>, tape ce que la ligne dit."],
+  dialogue:[
+    {say:"<code>ecrire(…)</code> grave une valeur dans le secteur où tu es positionné. C'est <b>toi qui dois la taper</b> au clavier.", spot:['grid','prog'], probe:true},
+    {say:"Le code peut aussi donner la valeur <b>en dur</b> : <code>ecrire(7)</code>, tape ce que la ligne dit.", spot:['prog'], line:4}],
   notes:['ecrire'], showValues:true, showVars:true,
   cells:[[4,0,0]], start:[0,0],
   prog:[ read('x'),
@@ -631,9 +631,9 @@ const LEVELS = [
   win:s=>s.cells[0][0].v===4&&s.c===1 },
 
 { bloc:3, title:"La copie", guide:true,
-  dlgSpot:['prog'], dlgLine:1,
-  dialogue:["Une variable peut se ranger <b>dans une autre</b> : <code>y = x</code> copie la valeur de x dans y (x garde sa valeur).",
-    "Et <code>x = y + 1</code> calcule <b>à partir d'une autre variable</b>. Le panneau revient pour ces nouveaux gestes, un temps."],
+  dialogue:[
+    {say:"Une variable peut se ranger <b>dans une autre</b> : <code>y = x</code> copie la valeur de x dans y (x garde sa valeur).", spot:['prog'], line:1},
+    {say:"Et <code>x = y + 1</code> calcule <b>à partir d'une autre variable</b>. Le panneau revient pour ces nouveaux gestes, un temps.", spot:['grid'], vars:true}],
   notes:['entre'], showValues:true, showVars:true,
   cells:[[5,0,0]], start:[0,0], target:[0,2],
   prog:[ read('x'),
@@ -784,9 +784,9 @@ const LEVELS = [
   win:s=>s.cells[0][2].v===4 },
 
 { bloc:4, title:"Les mots", guide:true,
-  dlgSpot:['grid','prog'],
-  dialogue:["Les secteurs peuvent contenir des <b>mots</b>. Une variable aussi : <code>x = lire()</code> range le mot. Les guillemets, <code>\"sel\"</code>, délimitent une <b>chaîne de caractères</b>.",
-    "<code>ecrire(x)</code> : tape le mot, <b>lettre par lettre</b>. Le panneau revient le temps d'apprendre."],
+  dialogue:[
+    {say:"Les secteurs peuvent contenir des <b>mots</b>. Une variable aussi : <code>x = lire()</code> range le mot. Les guillemets, <code>\"sel\"</code>, délimitent une <b>chaîne de caractères</b>.", spot:['grid','prog'], probe:true},
+    {say:"<code>ecrire(x)</code> : tape le mot, <b>lettre par lettre</b>. Le panneau revient le temps d'apprendre.", spot:['grid'], vars:true}],
   notes:['chaine'], showValues:true, showVars:true,
   cells:[["sel","",""]], start:[0,0], target:[0,2],
   prog:[ read('x'),
