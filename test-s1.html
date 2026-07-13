@@ -1394,6 +1394,12 @@ function togglePB(){ if($('pb').classList.contains('show')) $('pb').classList.re
 
 document.addEventListener('keydown',e=>{
   const K=e.key;
+  /* M = menu des niveaux (dev), disponible N'IMPORTE QUAND (tutoriel, dialogue, victoire, défaite…),
+     sauf si 'm' est justement la lettre à taper en plein jeu */
+  if(K==='m'||K==='M'){
+    if($('menu').classList.contains('show')){ e.preventDefault(); $('menu').classList.remove('show'); return; }
+    if(expectedKeyNow()!=='m'){ e.preventDefault(); openMenu(); return; }
+  }
   /* ---- tutoriel scripté : il pilote tout, une seule touche acceptée à la fois ---- */
   const st=tutStep();
   if(st){
@@ -1423,10 +1429,9 @@ document.addEventListener('keydown',e=>{
     if(K==='Enter'){ e.preventDefault(); dlgIdx++; renderDlg(); render(); }
     return;
   }
-  /* p/r/m = raccourcis… SAUF si le mot à taper attend justement cette lettre */
+  /* P = pense-bête… SAUF si le mot à taper attend justement cette lettre (M est géré tout en haut) */
   const expK=expectedKeyNow();
   if((K==='p'||K==='P') && expK!=='p'){ e.preventDefault(); openPB(); return; }
-  if((K==='m'||K==='M') && expK!=='m'){ e.preventDefault(); openMenu(); return; }
   if(e.isTrusted && performance.now()<lockUntil) return;
   const isLetter=/^[a-z]$/.test(K);
   if(!GAMEKEYS.includes(K) && !isLetter) return;
