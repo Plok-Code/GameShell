@@ -330,6 +330,7 @@ const LEVELS = [
   win:s=>s.r===0&&s.c===2 },
 
 { bloc:1, title:"Deux boîtes",
+  dlgSpot:['prog'],
   dialogue:["Il peut y avoir <b>plusieurs</b> variables. Ce programme en contient une nouvelle, nommée <code>y</code>."],
   cells:[[0,0,0,0],[0,0,0,0],[0,0,0,0]], start:[0,0], target:[2,0],
   prog:[ set('x',2), set('y',1),
@@ -363,6 +364,7 @@ const LEVELS = [
   win:s=>s.r===0&&s.c===0 },
 
 { bloc:1, title:"La mémoire longue", wrap:true, notes:['boucle'],
+  dlgSpot:['grid'],
   dialogue:["Cette zone <b>boucle</b> (bords en pointillés) : sortir en bas fait revenir en haut. <code>descendre(18)</code> sur 3 lignes = six tours complets."],
   cells:[[0,0,0,0],[0,0,0,0],[0,0,0,0]], start:[0,0], target:[1,1],
   prog:[ set('x',1), set('y',3), set('z',2),
@@ -396,6 +398,7 @@ const LEVELS = [
 
 /* ============ BLOC 2, lire, écrire, calculer (16-30) ============ */
 { bloc:2, title:"Rappel : le coursier",
+  dlgSpot:['prog'],
   dialogue:["À partir de maintenant, les lignes du programme ne sont <b>plus surlignées</b>. À toi de savoir où tu en es."],
   cells:[[0,0,0],[0,0,0]], start:[0,0], target:[1,0],
   prog:[ set('x',2),
@@ -424,6 +427,7 @@ const LEVELS = [
   win:s=>s.r===2&&s.c===2 },
 
 { bloc:2, title:"Lire",
+  dlgSpot:['grid','prog'],
   dialogue:["Les secteurs contiennent désormais des <b>valeurs</b>.",
     "<code>lire()</code> <b>renvoie</b> la valeur écrite dans le secteur où tu es positionné : <code>x = lire()</code> la range dans la variable x.",
     "Pour t'aider au début, <b>les variables restent affichées sous la grille</b>."],
@@ -464,6 +468,7 @@ const LEVELS = [
   win:s=>s.r===1&&s.c===1 },
 
 { bloc:2, title:"Écrire",
+  dlgSpot:['grid','prog'],
   dialogue:["<code>ecrire(…)</code> grave une valeur dans le secteur où tu es positionné. C'est <b>toi qui dois la taper</b> au clavier.",
     "Le code peut aussi donner la valeur <b>en dur</b> : <code>ecrire(7)</code>, tape ce que la ligne dit."],
   notes:['ecrire'], showValues:true, showVars:true,
@@ -496,6 +501,7 @@ const LEVELS = [
   win:s=>s.cells[3][2].v===3&&s.cells[3][0].v===7&&s.cells[0][0].v===3 },
 
 { bloc:2, title:"Sans filet",
+  dlgSpot:['grid'],
   dialogue:["Le panneau des variables <b>s'éteint</b> : tu dois maintenant retenir les valeurs de tête."],
   showValues:true,
   cells:[[2,0,7,0]], start:[0,0], target:[0,2],
@@ -517,6 +523,7 @@ const LEVELS = [
   win:s=>s.cells[1][0].v===4&&s.cells[0][2].v===4 },
 
 { bloc:2, title:"Le calcul",
+  dlgSpot:['prog'], dlgLine:1,
   dialogue:["Tu verras désormais des lignes comme <code>x = x + 1</code> : la machine calcule la valeur à droite du signe =, puis la range dans la variable à gauche. <code>x = x + 1</code> augmente donc x de 1."],
   notes:['calcul'], showValues:true,
   cells:[[4,2,9]], start:[0,0], target:[0,0],
@@ -537,6 +544,7 @@ const LEVELS = [
   win:s=>s.cells[0][3].v===4 },
 
 { bloc:2, title:"Plus court : += et -=", guide:true,
+  dlgSpot:['prog'],
   dialogue:["Raccourci : <code>x += 3</code> veut dire <code>x = x + 3</code>. De même, <code>y -= 2</code> retire 2 à y."],
   notes:['raccourci'], showValues:true,
   cells:[[4,1],[8,6]], start:[0,0],
@@ -623,6 +631,7 @@ const LEVELS = [
   win:s=>s.cells[0][0].v===4&&s.c===1 },
 
 { bloc:3, title:"La copie", guide:true,
+  dlgSpot:['prog'], dlgLine:1,
   dialogue:["Une variable peut se ranger <b>dans une autre</b> : <code>y = x</code> copie la valeur de x dans y (x garde sa valeur).",
     "Et <code>x = y + 1</code> calcule <b>à partir d'une autre variable</b>. Le panneau revient pour ces nouveaux gestes, un temps."],
   notes:['entre'], showValues:true, showVars:true,
@@ -655,6 +664,7 @@ const LEVELS = [
   win:s=>s.cells[1][2].v===4 },
 
 { bloc:3, title:"Sans le panneau",
+  dlgSpot:['grid'],
   dialogue:["Le panneau s'éteint à nouveau, les variables liées aussi, c'est <b>de tête</b>."],
   showValues:true,
   cells:[[3,0,0,0],[0,0,0,0]], start:[0,0], target:[1,3],
@@ -666,6 +676,7 @@ const LEVELS = [
   win:s=>s.cells[1][3].v===1 },
 
 { bloc:3, title:"Multiplier", guide:true,
+  dlgSpot:['prog'], dlgLine:1,
   dialogue:["<code>*</code> multiplie, <code>/</code> divise : <code>y = x * 2</code> range le <b>double</b> de x dans y ; <code>y = x / 2</code> la moitié."],
   notes:['multdiv'], showValues:true,
   cells:[[3,0,0]], start:[0,0], target:[0,2],
@@ -773,6 +784,7 @@ const LEVELS = [
   win:s=>s.cells[0][2].v===4 },
 
 { bloc:4, title:"Les mots", guide:true,
+  dlgSpot:['grid','prog'],
   dialogue:["Les secteurs peuvent contenir des <b>mots</b>. Une variable aussi : <code>x = lire()</code> range le mot. Les guillemets, <code>\"sel\"</code>, délimitent une <b>chaîne de caractères</b>.",
     "<code>ecrire(x)</code> : tape le mot, <b>lettre par lettre</b>. Le panneau revient le temps d'apprendre."],
   notes:['chaine'], showValues:true, showVars:true,
@@ -802,6 +814,7 @@ const LEVELS = [
   win:s=>s.cells[1][1].v==='eau' },
 
 { bloc:4, title:"En lettres, sans filet",
+  dlgSpot:['grid'],
   dialogue:["Plus de panneau pour les mots non plus, la lettre à taper, c'est <b>toi</b> qui la portes."],
   showValues:true,
   cells:[["sud","",""],[2,0,0]], start:[0,0], target:[1,2],
@@ -813,6 +826,7 @@ const LEVELS = [
   win:s=>s.cells[1][2].v==='sud' },
 
 { bloc:4, title:"Coller : la concaténation", guide:true,
+  dlgSpot:['prog'],
   dialogue:["Le <code>+</code> peut aussi <b>coller</b> deux mots l'un derrière l'autre : <code>\"so\" + \"le\"</code> donne le mot <code>\"sole\"</code>. Ça s'appelle la <b>concaténation</b>.",
     "Fais très attention à l'<b>ORDRE des variables</b> : <code>x + y</code> et <code>y + x</code> ne donnent PAS le même mot."],
   notes:['concat'], showValues:true,
@@ -905,6 +919,7 @@ const LEVELS = [
    deux modificateurs neufs SANS vocabulaire nouveau : zones qui BOUCLENT (wrap, bords en
    pointillés) et CALCULS EN ARGUMENT (avancer(x + 1), ecrire(x + y), avancer(lire())) ============ */
 { bloc:5, title:"La zone qui boucle", wrap:true,
+  dlgSpot:['grid'],
   dialogue:["Les bords en <b>pointillés</b> signalent une zone qui <b>boucle</b> : sortir d'un côté fait rentrer de l'autre.",
     "<code>avancer(6)</code> sur une grille de 4 colonnes = un tour complet (4 pressions)… plus 2."],
   showValues:true,
@@ -947,6 +962,7 @@ const LEVELS = [
   win:s=>s.cells[0][0].v===7&&s.cells[0][1].v===3 },
 
 { bloc:5, title:"Le calcul en marche", notes:['exprarg'],
+  dlgSpot:['prog'],
   dialogue:["L'argument peut être un <b>calcul</b> : <code>avancer(x + 1)</code> = avancer de la valeur de x, plus 1.",
     "Pareil pour écrire : <code>ecrire(x + 2)</code> = taper la valeur de x, plus 2."],
   showValues:true,
@@ -974,6 +990,7 @@ const LEVELS = [
   win:s=>s.cells[0][0].v===9&&s.cells[0][1].v===4&&s.cells[0][2].v===7 },
 
 { bloc:5, title:"La lecture directe",
+  dlgSpot:['prog'],
   dialogue:["<code>lire()</code> peut servir directement d'<b>argument</b> : <code>avancer(lire())</code> = avancer d'autant que vaut le secteur où tu es."],
   showValues:true,
   cells:[[2,0,3,0,0,1],[0,4,0,0,0,4]], start:[0,0], target:[1,1],
@@ -1131,6 +1148,16 @@ let gameovers=0;    /* game overs sur le niveau en cours : 1 = surlignage rallum
 const KEYLBL={ArrowRight:'→',ArrowLeft:'←',ArrowUp:'↑',ArrowDown:'↓',Enter:'Entrée',p:'P'};
 function dlgPagesActive(){ return dlgIdx>=0 && level && level.dlgPages && dlgIdx<level.dlgPages.length; }
 function tutStep(){ return (tut && !dlgPagesActive()) ? tut.steps[tut.i] : null; }
+/* source des mises en valeur (spot/line/probe/vars) : une étape de tuto, ou une page de dialogue
+   ENRICHIE (objet {say, spot, line…}). Un dialogue peut ainsi montrer un élément SANS guider pas-à-pas. */
+function curGuide(){
+  const st=tutStep(); if(st) return st;
+  const pages=level&&level.dlgPages;
+  if(!(pages && dlgIdx>=0 && dlgIdx<pages.length)) return null;   /* aucun dialogue affiché */
+  const p=pages[dlgIdx];
+  if(p && typeof p==='object') return p;                          /* page enrichie {say, spot…} */
+  return level.def.dlgSpot ? {spot:level.def.dlgSpot, line:level.def.dlgLine} : null;  /* surlignage du niveau */
+}
 /* messages des points d'étape entre deux blocs, par bloc d'arrivée */
 const CHECKPOINT={
   2:"Les programmes vont devenir de plus en plus durs maintenant.",
@@ -1236,7 +1263,9 @@ function renderDlg(){
   const pages=level.dlgPages||[], box=$('dlg'), dim=$('dim');
   let html=null, next='Entrée ▸', nodim=false, pos='';
   if(dlgIdx>=0 && dlgIdx<pages.length){
-    html=pages[dlgIdx];
+    const raw=pages[dlgIdx];                       /* page = texte simple OU objet {say, pos, nodim} */
+    html = (raw && typeof raw==='object') ? raw.say : raw;
+    if(raw && typeof raw==='object'){ nodim=!!raw.nodim; pos=raw.pos||''; }
     next=(dlgIdx<pages.length-1 || tut)?'Entrée ▸':'Entrée ▸ jouer';
   } else {
     const st=tutStep();
@@ -1255,8 +1284,8 @@ function renderDlg(){
 }
 function render(){
   const L=level.def;
-  /* mises en valeur du tutoriel scripté */
-  const st=tutStep();
+  /* mises en valeur : tutoriel scripté OU dialogue enrichi */
+  const st=curGuide();
   const spots=(st&&st.spot)||[];
   const hlLines = st&&st.line!==undefined ? [].concat(st.line) : [];
   $('gridbox').classList.toggle('spot', spots.includes('grid'));
