@@ -39,8 +39,6 @@
   .cell.col-rouge{background:#2a1016;border-color:#7c2a38}
   .cell.col-bleu{background:#0e1a33;border-color:#2a4a7c}
   .cell.col-vert{background:#0e2418;border-color:#2a6c48}
-  .cell.target{border-style:dashed;border-color:var(--gold)}
-  .cell.target::after{content:"⌖";position:absolute;top:1px;right:4px;font-size:10px;color:var(--gold);opacity:.85}
   .cell.pion{box-shadow:0 0 0 2px var(--cyan),0 0 20px #22d3ee44;color:#eafcff;transform:translateY(-2px)}
   .cell.word{font-size:12px;letter-spacing:.02em}
   /* panneau des boîtes (échafaudage mémoire, s'éteint quand c'est ancré) */
@@ -55,7 +53,8 @@
     overflow-y:auto;scrollbar-width:thin;scrollbar-color:#2a2d44 transparent}
   @media(max-width:760px){pre#code{max-height:58vh}}
   .cl{display:block;padding:1px 10px;border-radius:7px;color:#aeb6d6}
-  .cl .kw{color:var(--mag)} .cl .fn{color:var(--cyan)} .cl .nm{color:var(--gold)} .cl .str{color:var(--gold)}
+  /* chaînes ≠ nombres : couleur + italique distincts (confusion "l"/"1" observée en test S3) */
+  .cl .kw{color:var(--mag)} .cl .fn{color:var(--cyan)} .cl .nm{color:var(--gold)} .cl .str{color:var(--ok);font-style:italic}
   .cl.cur{background:#1c2038;box-shadow:-3px 0 0 var(--cyan) inset;color:#eaf0ff}
   .cl.done{color:#4a4f6e}
   .cl .prog{color:var(--faint);font-size:11px;margin-left:8px}
@@ -147,18 +146,19 @@
   </div>
   <div id="coach"></div>
   <footer>
-    <span style="margin-left:auto"><a href="test-feedback.html" target="_blank" style="color:var(--dim);text-decoration:none">donner mon avis</a></span>
+    <span id="kv" style="display:none"><span class="k">V</span> variables</span>
+    <span id="kp" style="display:none"><span class="k">P</span> pense-bête</span>
   </footer>
 </div>
 
 <div id="dim"></div>
 <div id="dlg"><div class="dlgcard"><div id="dlgtext"></div><div id="dlgnext">Entrée ▸</div></div></div>
-<div class="ov" id="menu"><div class="card"><h2>Niveaux · accès libre (prototype)</h2><div id="menulist"></div><div id="menuclose">M ou Échap pour fermer · clique un niveau</div></div></div>
+<div class="ov" id="menu"><div class="card"><h2>Niveaux · accès libre (prototype)</h2><div id="menulist"></div><div id="menuclose">Ctrl+M ou Échap pour fermer · clique un niveau</div></div></div>
 
 <div id="chips"></div>
 <div id="bubble"></div>
 <div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div class="go">Entrée ▸</div></div></div>
-<div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p id="losep"></p><div id="loseaids"></div><div class="go">Entrée ▸ recommencer</div></div></div>
+<div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p id="losep"></p><div id="loseaids"></div></div></div>
 <div class="ov" id="pb"><div class="card"><h2>Pense-bête</h2><div id="pblist"></div><div id="pbempty">Rien encore : les notions s'ajoutent au fil du jeu.</div><div id="pbclose">P ou Échap pour fermer</div></div></div>
 
 <script>
@@ -264,7 +264,9 @@ const setV=(s,v)=>{s.cells[s.r][s.c].v=v;};
 
 /* ================= LES 65 NIVEAUX, 6 BLOCS =================
    showValues : les valeurs des cases s'affichent (dès lire, bloc 2)
-   showVars   : le PANNEAU DES BOÎTES est affiché (échafaudage, à chaque famille nouvelle, puis fading) */
+   showVars   : le PANNEAU DES BOÎTES est affiché (échafaudage, à chaque famille nouvelle, puis fading)
+   target     : INERTE depuis S4 (le carré cible spoilait la destination et trompait avec le wrap :
+                remarques répétées en test). Conservé comme donnée de design, plus jamais affiché. */
 /* noms des blocs : usage interne (design) uniquement, jamais affichés au joueur */
 const BLOCS=['Se déplacer, retenir','Lire, écrire, calculer','Les variables entre elles','Les mots','La salle des machines','LE BOSS'];
 const LEVELS = [
@@ -977,9 +979,12 @@ const LEVELS = [
   win:s=>s.cells[0][0].v===7&&s.cells[0][1].v===3 },
 
 { bloc:5, title:"Le calcul en marche", notes:['exprarg'],
-  dlgSpot:['prog'],
-  dialogue:["L'argument peut être un <b>calcul</b> : <code>avancer(x + 1)</code> = avancer de la valeur de x, plus 1.",
-    "Pareil pour écrire : <code>ecrire(x + 2)</code> = taper la valeur de x, plus 2."],
+  /* S3 : notion portée par un dialogue → zappé sans lecture, seule notion non ré-explicable (S3-P04).
+     S4 : tutoriel pas-à-pas FORCÉ (la 2e étape attend la vraie touche : impossible à zapper). */
+  tuto:[
+    {say:"L'argument peut être un <b>calcul</b> : <code>avancer(x + 1)</code> = avancer de la valeur de x, <b>plus 1</b>.", spot:['prog'], line:1},
+    {key:'ArrowRight', say:"Ici x contient <b>2</b>, donc x + 1 = <b>3</b> : appuie 3 fois sur <b>→</b>.", spot:['prog','grid'], line:1},
+    {say:"C'est ça : la machine <b>calcule</b> l'argument, toi tu exécutes le <b>résultat</b>. Pareil pour écrire : <code>ecrire(x + 2)</code> = taper la valeur de x, plus 2. La suite du programme est à toi."}],
   showValues:true,
   cells:[[2,0,0,0],[0,0,0,0]], start:[0,0], target:[1,1],
   prog:[ read('x'),
@@ -1163,6 +1168,10 @@ let gameovers=0;    /* game overs sur le niveau en cours (débloque les aides pr
 /* aides opt-in choisies au game over, actives jusqu'à la fin du niveau : afficher les variables,
    surligner la ligne courante, coup de pouce (coach) pour les premiers niveaux */
 let aidVars=false, aidLines=false, aidGuide=false;
+/* toggle JOUEUR du panneau des variables (touche V) : persistant d'un niveau à l'autre (jamais reset) */
+let playerVars=false;
+/* anti-zap : horodatage d'ouverture de l'écran game over et de la page de dialogue courante */
+let loseAt=0, dlgShownAt=0;
 const KEYLBL={ArrowRight:'→',ArrowLeft:'←',ArrowUp:'↑',ArrowDown:'↓',Enter:'Entrée',p:'P'};
 function dlgPagesActive(){ return dlgIdx>=0 && level && level.dlgPages && dlgIdx<level.dlgPages.length; }
 function tutStep(){ return (tut && !dlgPagesActive()) ? tut.steps[tut.i] : null; }
@@ -1275,7 +1284,14 @@ function hlPy(t){
 }
 function renderAll(){
   $('lvlno').textContent='niveau '+(li+1)+' / '+LEVELS.length;
-  renderDlg(); render();
+  renderDlg(); render(); updateHints();
+}
+/* hints du footer : P dès son introduction, V dès que le panneau des variables existe (Lire) ; ✓ = V actif */
+function updateHints(){
+  $('kp').style.display = li>=PB_INTRO ? '' : 'none';
+  const kv=$('kv');
+  kv.style.display = li>=LIRE_INDEX ? '' : 'none';
+  kv.innerHTML = '<span class="k">V</span> variables'+(playerVars?' <span style="color:var(--ok)">✓</span>':'');
 }
 function renderDlg(){
   const pages=level.dlgPages||[], box=$('dlg'), dim=$('dim');
@@ -1290,6 +1306,7 @@ function renderDlg(){
     if(st && st.say){ html=st.say; next=st.key ? (KEYLBL[st.key]||st.key)+' ▸' : 'Entrée ▸'; nodim=!!st.nodim; pos=st.pos||''; }
   }
   if(html!==null){
+    dlgShownAt=performance.now();          /* anti-zap : 400 ms mini avant de pouvoir passer la page */
     $('dlgtext').innerHTML=html;
     $('dlgnext').textContent=next;
     box.classList.toggle('bottom', pos==='bottom');
@@ -1316,7 +1333,6 @@ function render(){
       const d=document.createElement('div');
       d.className='cell'+(L.showValues?'':' empty')+(cell.col?' col-'+cell.col:'')
         +((typeof cell.v==='string'&&cell.v.length>1)?' word':'');
-      if(L.target&&L.target[0]===ri&&L.target[1]===ci) d.classList.add('target');
       if(ri===G.r&&ci===G.c){ d.classList.add('pion'); if(st&&st.probe) d.classList.add('tut'); }
       d.textContent = L.showValues ? cell.v : '·';
       rd.appendChild(d);
@@ -1326,15 +1342,15 @@ function render(){
   /* panneau des boîtes (échafaudage) */
   const vp=$('varsp'); vp.innerHTML='';
   const names=Object.keys(G.vars);
-  if((L.showVars || aidVars) && names.length){
+  if((L.showVars || aidVars || playerVars) && names.length){
     const lab=document.createElement('span'); lab.className='vlabel'; lab.textContent='variables'; vp.appendChild(lab);
     names.forEach(n=>{ const d=document.createElement('span'); d.className='vchip';
       if(st&&st.vars) d.classList.add('tut');
       d.innerHTML=n+' = <b>'+fmt(G.vars[n])+'</b>'; vp.appendChild(d); });
     vp.classList.add('show');
   } else vp.classList.remove('show');
-  /* programme ; dès HL_OFF la position n'est plus montrée (sauf tutoriel scripté, ou aide "lignes" activée) */
-  const showCur = li<HL_OFF || !!L.tuto || aidLines;
+  /* programme ; dès HL_OFF la position n'est plus montrée (sauf PENDANT un tutoriel scripté, ou aide "lignes" activée) */
+  const showCur = li<HL_OFF || !!tut || aidLines;
   const code=$('code'); code.innerHTML='';
   level.lines.forEach((ln,lnIdx)=>{
     const el=document.createElement('span'); el.className='cl';
@@ -1386,6 +1402,7 @@ function ok(){ G.steps++; runFree(); render(); const c=cur(); if(c&&c.type==='en
 function fail(msg){
   errors++;
   if(errors>=3){ errors=0; gameovers++; resetState(); buildLoseScreen(); render();
+    loseAt=performance.now();              /* verrou anti-zap : Entrée inopérante ~800 ms (S3-P04 fermait sans voir les aides) */
     $('lose').classList.add('show'); return; }
   resetState();
   bubble('✗ erreur '+errors+'/3 : '+msg);
@@ -1397,28 +1414,22 @@ function fail(msg){
    Une aide n'est proposée que si elle n'est pas déjà active par défaut sur ce niveau.
    Premiers niveaux (lignes déjà surlignées) : un "coup de pouce" à la place. */
 function buildLoseScreen(){
-  const L=level.def, box=$('loseaids'); box.innerHTML='';
-  let m='Retente ta chance.';
-  if(li>=LIRE_INDEX) m+=' <span style="color:var(--faint)">Tu peux aussi ouvrir le pense-bête (touche P).</span>';
-  $('losep').innerHTML=m;
-  const hasVars = level.instrs.some(i=>i.type==='stmt');          /* le niveau manipule des variables */
-  const canVars = !L.showVars && hasVars;                          /* variables pas déjà affichées */
-  const canLines = li>=HL_OFF;                                     /* lignes pas déjà surlignées (hors tuto, impossible ici) */
-  const early = li<HL_OFF;                                         /* premiers niveaux : coup de pouce */
-  function addBtn(label,active,onActivate){
-    const b=document.createElement('button'); b.className='aidbtn'+(active?' on':'');
-    b.innerHTML=label; if(!active) b.onclick=onActivate; box.appendChild(b);
-  }
-  if(canVars)
-    addBtn(aidVars?'Variables affichées ✓ <b>(retente maintenant)</b>':'Aide : <b>afficher les variables</b> sous la grille',
-      aidVars, ()=>{ aidVars=true; buildLoseScreen(); render(); });
-  if(canLines && gameovers>=2)
-    addBtn(aidLines?'Ligne en cours surlignée ✓ <b>(retente maintenant)</b>':'Aide : <b>surligner la ligne en cours</b>',
-      aidLines, ()=>{ aidLines=true; buildLoseScreen(); render(); });
-  if(early)
-    addBtn(aidGuide?'Coup de pouce activé ✓ <b>(retente maintenant)</b>':'Aide : <b>un coup de pouce</b> pour t\'orienter',
-      aidGuide, ()=>{ aidGuide=true; buildLoseScreen(); render(); });
+  const box=$('loseaids'); box.innerHTML='';
+  $('losep').innerHTML='Tu as fait 3 erreurs sur ce niveau.';
+  const b1=document.createElement('button'); b1.className='aidbtn';
+  b1.innerHTML='tape la touche <b>1</b> si tu veux de l\'aide pour ce niveau'; b1.onclick=loseHelp; box.appendChild(b1);
+  const b2=document.createElement('button'); b2.className='aidbtn';
+  b2.innerHTML='tape la touche <b>2</b> si tu veux recommencer sans aide'; b2.onclick=loseRetry; box.appendChild(b2);
 }
+/* [1] = active toutes les aides pertinentes pour CE niveau (variables cachées, surlignage OU coup de pouce) */
+function loseHelp(){
+  const L=level.def;
+  if(!L.showVars && !playerVars && level.instrs.some(i=>i.type==='stmt')) aidVars=true;
+  if(li>=HL_OFF) aidLines=true; else aidGuide=true;
+  closeLose();
+}
+function loseRetry(){ closeLose(); }
+function closeLose(){ $('lose').classList.remove('show'); lockUntil=performance.now()+350; render(); }
 function checkWin(){
   if(tut) return;   /* niveau scripté : c'est le tutoriel qui gère la fin (dialogue puis niveau suivant) */
   if(level.def.win(G)){ $('wt').textContent = li===LEVELS.length-1 ? 'Prototype terminé' : 'Niveau réussi';
@@ -1456,7 +1467,7 @@ function expectedKeyNow(){
 function handleWrite(ins, K){
   const v=ins.val(G), sv=String(v);
   if(K!==sv[G.sub]){
-    fail(typeof ins.hint==='function'?ins.hint(G):ins.hint);
+    fail('ce n\'est pas la bonne valeur.');   /* catégorie sans la réponse : la déduction reste au joueur */
     return;
   }
   if(typeof v==='number'){ setV(G, v); G.sub=0; G.pc++; ok(); return; }
@@ -1476,12 +1487,21 @@ function togglePB(){ if($('pb').classList.contains('show')) $('pb').classList.re
 
 document.addEventListener('keydown',e=>{
   const K=e.key;
-  /* M = menu des niveaux (dev), disponible N'IMPORTE QUAND (tutoriel, dialogue, victoire, défaite…),
-     sauf si 'm' est justement la lettre à taper en plein jeu */
-  if(K==='m'||K==='M'){
-    if($('menu').classList.contains('show')){ e.preventDefault(); $('menu').classList.remove('show'); return; }
-    if(expectedKeyNow()!=='m'){ e.preventDefault(); openMenu(); return; }
+  /* Ctrl+M = menu des niveaux (dev), n'importe quand — traité AVANT le filtre des modificateurs */
+  if((K==='m'||K==='M') && e.ctrlKey){
+    e.preventDefault();
+    if($('menu').classList.contains('show')) $('menu').classList.remove('show'); else openMenu();
+    return;
   }
+  /* touche MAINTENUE (auto-repeat) : tolérée uniquement au MILIEU d'une instruction multi-pressions
+     (avancer(n), mot en cours) ; partout ailleurs elle cause erreurs fantômes (dépassement au changement
+     de ligne, S3-P04 niv 52) et zappe dialogues / écrans */
+  if(e.repeat){
+    const mid = G && G.sub>0 && !$('win').classList.contains('show')
+      && !$('lose').classList.contains('show') && !$('dlg').classList.contains('show');
+    if(!mid) return;
+  }
+  if(e.ctrlKey||e.altKey||e.metaKey) return;   /* raccourcis navigateur : jamais interprétés comme du jeu */
   /* ---- tutoriel scripté : il pilote tout, une seule touche acceptée à la fois ---- */
   const st=tutStep();
   if(st){
@@ -1494,26 +1514,30 @@ document.addEventListener('keydown',e=>{
       if(G.pc!==pc0 && tutAdvance()) return;      /* multi-pressions : on reste sur le step tant que la ligne n'est pas finie */
       renderAll(); return;
     }
-    if(K==='Enter'){ e.preventDefault(); if(!tutAdvance()) renderAll(); }
+    if(K==='Enter' && performance.now()-dlgShownAt>400){ e.preventDefault(); if(!tutAdvance()) renderAll(); }
     return;
   }
   if($('pb').classList.contains('show')){ if(K==='p'||K==='P'||K==='Escape'){e.preventDefault();$('pb').classList.remove('show');} return; }
-  if($('menu').classList.contains('show')){ if(K==='m'||K==='M'||K==='Escape'){e.preventDefault();$('menu').classList.remove('show');} return; }
+  if($('menu').classList.contains('show')){ if(K==='Escape'){e.preventDefault();$('menu').classList.remove('show');} return; }
   if($('win').classList.contains('show')){
     if(K==='Enter'){ e.preventDefault(); $('win').classList.remove('show'); loadLevel(li<LEVELS.length-1?li+1:0, true); }
     return;
   }
   if($('lose').classList.contains('show')){
-    if(K==='Enter'){ e.preventDefault(); $('lose').classList.remove('show'); lockUntil=performance.now()+350; render(); }
+    if(performance.now()-loseAt<800) return;              /* verrou ~800 ms : force la lecture du panneau */
+    if(K==='1'){ e.preventDefault(); loseHelp(); return; }
+    if(K==='2'){ e.preventDefault(); loseRetry(); return; }
     return;
   }
   if($('dlg').classList.contains('show')){
-    if(K==='Enter'){ e.preventDefault(); dlgIdx++; renderDlg(); render(); }
+    if(K==='Enter' && performance.now()-dlgShownAt>400){ e.preventDefault(); dlgIdx++; renderDlg(); render(); }
     return;
   }
   /* P = pense-bête… SAUF si le mot à taper attend justement cette lettre (M est géré tout en haut) */
   const expK=expectedKeyNow();
   if((K==='p'||K==='P') && expK!=='p'){ e.preventDefault(); openPB(); return; }
+  /* V = panneau des variables, toggle joueur permanent (S3-P04 suivait les valeurs sur un bloc-notes papier) */
+  if((K==='v'||K==='V') && expK!=='v'){ e.preventDefault(); playerVars=!playerVars; render(); updateHints(); return; }
   if(e.isTrusted && performance.now()<lockUntil) return;
   const isLetter=/^[a-z]$/.test(K);
   if(!GAMEKEYS.includes(K) && !isLetter) return;
@@ -1545,21 +1569,17 @@ function gameKey(K){
   for(let bi=0; bi<res.taken.length; bi++){
     const alt=resolveFrom(G.pc,bi);
     if(alt.ins && keyFor(alt.ins,alt.S)===K){
-      const t=res.taken[bi];
-      const v=t.ins.valText? t.ins.valText(res.S)+' → ' : '';
-      fail(v+'la condition '+t.ins.condPy.replace(/^((while|if|for)\s*)/,'').replace(/:$/,'')+' est '+(t.val?'VRAIE':'FAUSSE')+
-           ' → la prochaine ligne est "'+res.ins.py+'".');
+      fail('ce n\'est pas la bonne ligne : relis la condition.');
       return;
     }
   }
-  fail(describeExpected(res.ins,res.S));
+  fail(res.ins.type==='write' ? 'ce n\'est pas la bonne valeur.' : 'ce n\'est pas le bon mouvement.');
 }
 
 function handleCall(ins, K){
   const want=KEYOF[ins.name];
   if(K!==want){
-    fail(ins.hint ? (typeof ins.hint==='function'?ins.hint(G):ins.hint)
-                  : 'la ligne dit '+ins.py+' → touche '+ARROW[want]+'.');
+    fail('ce n\'est pas le bon mouvement.');
     return;
   }
   const [dr,dc]=DIRS[ins.name];

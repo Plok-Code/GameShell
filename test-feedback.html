@@ -142,8 +142,15 @@
     <div class="hint">moyenne de ces derniers mois</div>
   </div>
 
+  <div class="q" data-req="puzzlefun">
+    <div class="qt"><span class="n">11.</span>De 0 à 10, à quel point trouves-tu amusants les jeux de <b>puzzle / casse-tête</b> en général ? <span class="star">*</span></div>
+    <div class="scale" id="puzzlescale"></div>
+    <div class="anchors"><span>0 = je déteste ce genre</span><span>10 = c'est mon genre préféré</span></div>
+    <div class="hint">indépendamment de ce prototype : le genre en soi</div>
+  </div>
+
   <div class="q" data-req="motiv">
-    <div class="qt"><span class="n">11.</span>Dans les jeux en général, coche les 3 propositions qui te ressemblent le plus (exactement 3) <span class="star">*</span></div>
+    <div class="qt"><span class="n">12.</span>Dans les jeux en général, coche les 3 propositions qui te ressemblent le plus (exactement 3) <span class="star">*</span></div>
     <label class="choice"><input type="checkbox" name="motiv" value="action rapide/adrénaline">l'action rapide, l'adrénaline, les moments intenses</label>
     <label class="choice"><input type="checkbox" name="motiv" value="destruction/chaos">tout casser, semer le chaos</label>
     <label class="choice"><input type="checkbox" name="motiv" value="compétition">affronter d'autres joueurs et gagner</label>
@@ -159,7 +166,7 @@
   </div>
 
   <div class="q" data-req="expcode">
-    <div class="qt"><span class="n">12.</span>Ton expérience de la programmation avant ce test <span class="star">*</span></div>
+    <div class="qt"><span class="n">13.</span>Ton expérience de la programmation avant ce test <span class="star">*</span></div>
     <label class="choice"><input type="radio" name="expcode" value="jamais écrit une ligne de code">jamais écrit une ligne de code</label>
     <label class="choice"><input type="radio" name="expcode" value="essayé sans être autonome">déjà essayé (tuto, cours, Scratch) sans être autonome</label>
     <label class="choice"><input type="radio" name="expcode" value="capable d'écrire un petit programme seul">capable d'écrire un petit programme seul</label>
@@ -167,14 +174,14 @@
   </div>
 
   <div class="q" data-req="envie">
-    <div class="qt"><span class="n">13.</span>Si on t'offrait 10 heures de cours pour apprendre à programmer, tu <span class="star">*</span></div>
+    <div class="qt"><span class="n">14.</span>Si on t'offrait 10 heures de cours pour apprendre à programmer, tu <span class="star">*</span></div>
     <label class="choice"><input type="radio" name="envie" value="les prendrais dès cette semaine">les prendrais dès cette semaine</label>
     <label class="choice"><input type="radio" name="envie" value="les garderais pour plus tard">les garderais pour plus tard</label>
     <label class="choice"><input type="radio" name="envie" value="les déclinerais">les déclinerais</label>
   </div>
 
   <div class="q" data-req="horreur">
-    <div class="qt"><span class="n">14.</span>La dernière fois que tu as choisi de toi-même un jeu ou un film d'horreur, c'était <span class="star">*</span></div>
+    <div class="qt"><span class="n">15.</span>La dernière fois que tu as choisi de toi-même un jeu ou un film d'horreur, c'était <span class="star">*</span></div>
     <label class="choice inline"><input type="radio" name="horreur" value="ce mois-ci">ce mois-ci</label>
     <label class="choice inline"><input type="radio" name="horreur" value="dans l'année">dans l'année</label>
     <label class="choice inline"><input type="radio" name="horreur" value="il y a plus d'un an">il y a plus d'un an</label>
@@ -182,7 +189,7 @@
   </div>
 
   <div class="q" data-req="conversion">
-    <div class="qt"><span class="n">15.</span>La version finale de ce jeu sera un thriller d'horreur psychologique (tension, ambiance oppressante). Avec cette ambiance, tu y jouerais <span class="star">*</span></div>
+    <div class="qt"><span class="n">16.</span>La version finale de ce jeu sera un thriller d'horreur psychologique (tension, ambiance oppressante). Avec cette ambiance, tu y jouerais <span class="star">*</span></div>
     <label class="choice"><input type="radio" name="conversion" value="plus volontiers qu'aujourd'hui">plus volontiers qu'aujourd'hui</label>
     <label class="choice"><input type="radio" name="conversion" value="autant">autant</label>
     <label class="choice"><input type="radio" name="conversion" value="moins volontiers">moins volontiers</label>
@@ -190,7 +197,7 @@
   </div>
 
   <div class="q">
-    <div class="qt"><span class="n">16.</span>Autre chose à dire ?</div>
+    <div class="qt"><span class="n">17.</span>Autre chose à dire ?</div>
     <textarea id="libre" placeholder="tout ce qui n'a pas trouvé sa place plus haut"></textarea>
   </div>
 
@@ -217,6 +224,11 @@ const fs=$('funscale');
 for(let i=0;i<=10;i++){ const b=document.createElement('button'); b.type='button'; b.textContent=i;
   b.onclick=()=>{ fun=i; [...fs.children].forEach((x,k)=>x.classList.toggle('on',k===i)); };
   fs.appendChild(b); }
+let puzzlefun=null;
+const ps=$('puzzlescale');
+for(let i=0;i<=10;i++){ const b=document.createElement('button'); b.type='button'; b.textContent=i;
+  b.onclick=()=>{ puzzlefun=i; [...ps.children].forEach((x,k)=>x.classList.toggle('on',k===i)); };
+  ps.appendChild(b); }
 
 /* conditionnelles */
 document.querySelectorAll('input[name="blocage"]').forEach(r=>r.addEventListener('change',()=>{
@@ -252,6 +264,7 @@ function validate(){
   need(checks('tb').length>0,'teachback');
   need(!!val('age'),'age');
   need(val('heures')!=='','heures');
+  need(puzzlefun!==null,'puzzlefun');
   need(checks('motiv').length===3,'motiv');
   need(!!radio('expcode'),'expcode');
   need(!!radio('envie'),'envie');
@@ -270,7 +283,7 @@ function buildSummary(){
     '   Blocage : '+dash(radio('blocage'))+(val('blocniveau')?' (niveau '+val('blocniveau')+')':''),
     '   Déjà-vu : '+dash(radio('deja'))+(val('dejaou')?' ('+val('dejaou')+')':''),
     'D· Incapable de réexpliquer : '+(checks('tb').join(', ')||'-'),
-    'E· Âge : '+val('age')+' · h/sem JV : '+val('heures'),
+    'E· Âge : '+val('age')+' · h/sem JV : '+val('heures')+' · goût puzzle/casse-tête : '+puzzlefun+'/10',
     '   Motivations (top 3) : '+checks('motiv').join(', '),
     '   Code : '+dash(radio('expcode'))+' · 10 h de cours offertes : '+dash(radio('envie')),
     '   Horreur choisie : '+dash(radio('horreur'))+' · version horreur : '+dash(radio('conversion')),
@@ -298,7 +311,7 @@ $('sendbtn').addEventListener('click',async()=>{
       body:JSON.stringify({
         _subject:'Retour test GameShell - '+val('discord')+' (test n° '+val('numtest')+')',
         testeur_discord:val('discord'), numero_test:val('numtest'),
-        fun_0_10:fun, age:val('age'),
+        fun_0_10:fun, puzzle_0_10:puzzlefun, age:val('age'),
         exp_code:radio('expcode'),
         resume:t
       })
