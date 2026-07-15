@@ -60,6 +60,14 @@
     <input type="text" id="numtest" placeholder="recopie le numéro reçu en message privé">
   </div>
 
+  <div class="q" data-req="presence">
+    <div class="qt"><span class="n"></span>Pendant ta session de jeu, quelqu'un d'autre était-il dans la même pièce que toi ? <span class="star">*</span></div>
+    <label class="choice"><input type="radio" name="presence" value="seul">non, j'étais seul(e)</label>
+    <label class="choice"><input type="radio" name="presence" value="présent sans commenter">oui, mais sans commenter ni réagir</label>
+    <label class="choice"><input type="radio" name="presence" value="présent et a parlé/réagi">oui, et il a parlé ou réagi (même un rire ou un "tu galères ?")</label>
+    <div class="hint">aucun problème dans tous les cas : on veut juste le savoir pour bien lire tes données</div>
+  </div>
+
   <div class="sec">B. Ton verdict</div>
 
   <div class="q" data-req="fun">
@@ -110,6 +118,12 @@
       <div class="qt" style="font-size:13px">Laquelle / lesquelles ? <span class="star">*</span></div>
       <input type="text" id="tbwhich" placeholder="ex. les calculs en argument, avancer(x + 1)">
     </div>
+  </div>
+
+  <div class="q" data-req="verif">
+    <div class="qt"><span class="n"></span>Petite vérification, de tête : le programme fait "x = 2" puis "x = x + 3". À la fin, que vaut x ? <span class="star">*</span></div>
+    <input type="number" id="verifx">
+    <div class="hint">réponds sans réfléchir trop longtemps : une réponse fausse est une donnée utile, pas une faute</div>
   </div>
 
   <div class="sec">E. Toi (30 secondes, pour savoir à qui le jeu parle)</div>
@@ -241,10 +255,12 @@ function validate(){
   const need=(cond,key)=>{ const el=document.querySelector('.q[data-req="'+key+'"]');
     if(el) el.classList.toggle('missing', !cond); if(!cond) missing.push(el); };
   need(!!val('numtest'),'numtest');
+  need(!!radio('presence'),'presence');
   need(fun!==null,'fun');
   need(!!radio('retour'),'retour');
   const bl=checks('blocage');
   need(bl.length>0 && (bl.includes('coincé nulle part') || !!val('blocniveau')), 'blocage');
+  need(val('verifx')!=='','verif');
   need(!!radio('deja'),'deja');
   need(!!radio('tb') && (radio('tb')!=='oui' || !!val('tbwhich')), 'teachback');
   need(!!val('age'),'age');
@@ -262,11 +278,12 @@ function dash(v){ return v===''||v===null||v===undefined ? '-' : v; }
 function buildSummary(){
   return [
     '=== RETOUR TEST GAMESHELL ('+new Date().toLocaleDateString('fr-FR')+') ===',
-    'A· Testeur : test n° '+val('numtest'),
+    'A· Testeur : test n° '+val('numtest')+' · pièce : '+dash(radio('presence')),
     'B· Fun : '+fun+'/10 · 20 nouveaux niveaux demain : '+dash(radio('retour')),
     'C· Blocage : '+(checks('blocage').join(', ')||'-')+(val('blocniveau')?' (niveau '+val('blocniveau')+')':''),
     '   Déjà-vu : '+dash(radio('deja'))+(val('dejaou')?' ('+val('dejaou')+')':''),
     'D· Réexplique tout ? '+dash(radio('tb'))+(val('tbwhich')?' → '+val('tbwhich'):''),
+    '   Vérif "x = 2 puis x = x + 3" → réponse : '+dash(val('verifx'))+' (attendu 5)',
     'E· Âge : '+val('age')+' · h/sem JV (6 mois) : '+val('heures')+' · goût puzzle/casse-tête : '+puzzlefun+'/10',
     '   Motivations (top 3) : '+checks('motiv').join(', '),
     '   Code : '+dash(radio('expcode'))+' · 10 h de cours offertes : '+dash(radio('envie')),
@@ -294,7 +311,7 @@ $('sendbtn').addEventListener('click',async()=>{
       headers:{'Accept':'application/json','Content-Type':'application/json'},
       body:JSON.stringify({
         _subject:'Retour test GameShell - '+val('numtest'),
-        numero_test:val('numtest'),
+        numero_test:val('numtest'), presence:radio('presence'), verif_x:val('verifx'),
         fun_0_10:fun, puzzle_0_10:puzzlefun, age:val('age'),
         exp_code:radio('expcode'),
         resume:t

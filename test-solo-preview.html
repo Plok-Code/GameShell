@@ -147,9 +147,16 @@
   .solochk{display:block;margin:7px 0;color:var(--txt);font-size:13.5px;cursor:pointer}
   .solochk input{margin-right:9px;vertical-align:middle}
   .sololbl{display:block;margin:12px 0 3px;color:var(--dim);font-size:12px}
-  #soloq textarea{width:100%;background:#0e1020;border:1px solid #2a2d44;border-radius:8px;color:#eaf0ff;
+  #soloq textarea, #soloq input.soloexp{width:100%;background:#0e1020;border:1px solid #2a2d44;border-radius:8px;color:#eaf0ff;
     font-family:inherit;font-size:13px;padding:7px 10px;resize:vertical}
-  #soloq textarea:focus, #soloexp:focus{outline:none;border-color:var(--cyan)}
+  #soloq textarea:focus, #soloq input.soloexp:focus{outline:none;border-color:var(--cyan)}
+  /* champ d'explication inline : replié tant que la case n'est pas cochée */
+  .soloexpw{display:none;margin:2px 0 8px 26px}
+  .soloexpw.show{display:block}
+  /* barre 1 clic de l'écran de victoire (solo) */
+  #winquick .wq{margin:12px 0 2px;color:var(--dim);font-size:13px}
+  #winquick .soloqbtns button b{color:var(--cyan);margin-right:5px}
+  #codemsg{color:var(--err);font-size:12px;min-height:15px;margin:8px 0 0}
   .soloqbtns{display:flex;gap:8px;margin-top:12px}
   .soloqbtns button{flex:1;background:#0e1020;border:1px solid #2a2d44;border-radius:8px;color:var(--txt);
     font-family:inherit;font-size:13.5px;padding:11px 8px;cursor:pointer}
@@ -200,7 +207,7 @@
 
 <div id="chips"></div>
 <div id="bubble"></div>
-<div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div id="winstars"></div><div class="go">Entrée ▸</div></div></div>
+<div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div id="winstars"></div><div id="winquick"></div><div class="go" id="wingo">Entrée ▸</div></div></div>
 <div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p id="losep"></p><div id="loseaids"></div></div></div>
 <div class="ov" id="pb"><div class="card"><h2>Pense-bête</h2><div id="pblist"></div><div id="pbempty">Rien encore : les notions s'ajoutent au fil du jeu.</div><div id="pbclose">P ou Échap pour fermer</div></div></div>
 <div class="ov show" id="codeov"><div class="card">
@@ -208,15 +215,17 @@
   <p>Entre ton code pour commencer.</p>
   <input id="codein" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ton code">
   <div><button id="codego" class="aidbtn">Commencer ▸</button></div>
+  <p id="codemsg"></p>
   <p id="codefine">Cette session enregistre ta progression (temps, erreurs) pour améliorer le jeu.</p>
 </div></div>
 <div id="adminbadge">● admin · non enregistré</div>
-<button id="endsession">Mettre fin à la session de test</button>
+<button id="endsession">Terminer et donner mon avis (2 min)</button>
 
 <!-- SOLO : écran de règles (mode ?solo uniquement) -->
 <div class="ov" id="solorules"><div class="card">
   <h2>Avant de commencer</h2>
-  <p>Pendant cette session, après certains niveaux, quelques <b>questions</b> apparaîtront ici même, et le jeu restera <b>bloqué</b> tant que tu n'y as pas répondu. C'est rapide (souvent un seul clic). Réponds honnêtement : il n'y a pas de bonne réponse.</p>
+  <p>Après chaque niveau, tu diras en <b>un clic</b> comment tu l'as vécu ; de temps en temps, quelques <b>questions</b> de plus apparaîtront et le jeu restera bloqué tant que tu n'y as pas répondu. Réponds honnêtement : il n'y a pas de bonne réponse, et <b>t'arrêter n'est jamais un échec</b>.</p>
+  <p>Quand tu veux arrêter, clique le <b>bouton rouge</b> en haut à droite : il t'emmène au questionnaire final (2 minutes).</p>
   <p>Si tu as compris, recopie ci-dessous : <b>j'ai bien compris les règles</b></p>
   <input id="soloruleschk" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="recopie ici la phrase en gras">
   <div><button id="solorulesgo" class="aidbtn">Commencer ▸</button></div>
@@ -1211,7 +1220,7 @@ const TELE = (function(){
   const FLUSH_MS   = 10000;
   const TRIVIAL_MS = 12000;          /* réussite < 12 s + 0 erreur + 0 game over = "trivial" (flag auto) */
   const PAUSE_MS   = 8000;           /* >= 8 s sans action = pause/hésitation : événement auto avec sa durée */
-  let on=false, sid='', code='', startWall=0, buf=[], summaryFinal=false, summarySeq=0, batchSeq=0, stats=null, lvlStart=0, curLvl=1, lastKeyAt=0;
+  let on=false, sid='', code='', startWall=0, buf=[], summaryFinal=false, summarySeq=0, batchSeq=0, stats=null, lvlStart=0, curLvl=1, lastKeyAt=0, pausedLvl=false;
   const iso = ()=>new Date().toISOString();
   const dev = ()=>({ua:navigator.userAgent, sw:screen.width, sh:screen.height, vw:innerWidth, vh:innerHeight,
                     dpr:devicePixelRatio, lang:navigator.language,
@@ -1247,27 +1256,29 @@ const TELE = (function(){
     if(!ok){ buf.unshift(...events); batchSeq--; if(wantSummary && kind==='final') summaryFinal=false; }
   }
   return {
-    isAdmin, get on(){ return on; },
-    start(c){
+    isAdmin, get on(){ return on; }, get sid(){ return sid; },
+    get pausedThisLevel(){ return pausedLvl; },
+    start(c, resumeSid){
       code=String(c).trim();
       if(isAdmin(c)){ on=false; return false; }        /* mode admin : rien n'est enregistré */
       on=true;
-      sid = Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+      sid = resumeSid || (Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8));   /* reprise = même session */
       startWall = Date.now();
       const pc=parseCode(code);
       stats = {code, session:pc.session, participant:pc.participant, mode:pc.mode,
+               urlMode:(typeof SOLO!=='undefined'&&SOLO)?'S':'V', resumed:!!resumeSid,
                version:VERSION, startedAt:iso(), device:dev(), lastLevel:1, completed:false,
-               totalErrors:0, totalGameovers:0, totalTimeouts:0, perLevel:{}};
-      push('session_start',{device:stats.device});
+               totalErrors:0, totalGameovers:0, totalTimeouts:0, totalFeedbackMs:0, perLevel:{}};
+      push('session_start',{device:stats.device, resumed:!!resumeSid});
       setInterval(()=>flush(false), FLUSH_MS);
       addEventListener('pagehide', ()=>flush('final'));
       addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flush('partial'); });
       return true;
     },
-    levelStart(l){ curLvl=l; lvlStart=Date.now(); lastKeyAt=0; if(on){ pl(l); push('level_start',{}); } },
+    levelStart(l){ curLvl=l; lvlStart=Date.now(); lastKeyAt=0; pausedLvl=false; if(on){ pl(l); push('level_start',{}); } },
     key(k,expected,ctrl){ if(!on) return;
       const now=Date.now();
-      if(lastKeyAt && now-lastKeyAt>PAUSE_MS) push('pause',{ms:now-lastKeyAt});   /* hésitation = gros écart entre deux actions */
+      if(lastKeyAt && now-lastKeyAt>PAUSE_MS){ pausedLvl=true; push('pause',{ms:now-lastKeyAt}); }   /* hésitation = gros écart entre deux actions */
       lastKeyAt=now;
       if(LOG_KEYS) push('key',{k, exp:expected||null, ctrl:!!ctrl}); },
     error(reason){ if(!on)return; pl(curLvl).errors++; stats.totalErrors++; push('error',{reason}); },
@@ -1279,13 +1290,16 @@ const TELE = (function(){
     aid(kind){ push('aid',{kind}); },
     pb(open){ push(open?'pb_open':'pb_close',{}); },
     menu(stars){ push('menu_open',{stars:!!stars}); },
-    feedback(d){ push('level_feedback', d||{}); },   /* réponses du questionnaire solo par niveau */
+    soloqShow(kind){ push('soloq_show',{kind}); },   /* apparition du questionnaire : delimite la "pause" dans les logs */
+    feedback(d){ push('level_feedback', d||{}); if(on && d && d.ms) stats.totalFeedbackMs+=d.ms; },   /* réponses solo + cumul du temps passé à répondre */
     end(){ flush('final'); },                         /* fin de session manuelle : envoie tout (events + résumé définitif) */
     completed(){ if(!on)return; stats.completed=true; push('game_completed',{}); flush('final'); }
   };
 })();
 let started=false;   /* le jeu ne démarre qu'après la saisie du code */
 const SOLO = (typeof location!=='undefined' && /(?:^|[?&])solo\b/i.test(location.search||''));   /* ?solo = mode solo : écran de règles + questionnaire par niveau */
+let testerCode='', isAdminSession=false;   /* code saisi + statut admin (déclarés ici : loadLevel s'en sert dès l'init) */
+let soloNext=0, soloLast=false, soloAns=null, soloShownAt=0, soloAnswered=false;   /* état du questionnaire solo */
 /* anti-zap : horodatage d'ouverture de l'écran game over et de la page de dialogue courante */
 let loseAt=0, dlgShownAt=0;
 const KEYLBL={ArrowRight:'→',ArrowLeft:'←',ArrowUp:'↑',ArrowDown:'↓',Enter:'Entrée',p:'P'};
@@ -1330,8 +1344,11 @@ function loadLevel(n, seq){
   if(L.dialogue) pages.push(...L.dialogue);
   level.dlgPages = pages;
   dlgIdx = pages.length ? 0 : -1;
+  soloAnswered=false;
   resetState(); renderAll();
   TELE.levelStart(n+1);
+  /* point de reprise (anti-F5/crash) : même code sous 6 h = on repart d'ici, même session */
+  if(started && TELE.on){ try{ localStorage.setItem('gs_resume', JSON.stringify({code:testerCode, sid:TELE.sid, lvl:n, at:Date.now()})); }catch(e){} }
   if(!pages.length && !tut) flushNoteChips();
 }
 function flushNoteChips(){
@@ -1566,9 +1583,11 @@ function checkWin(){
     if(last) TELE.completed();
     $('wt').textContent = last ? 'Bravo' : 'Niveau réussi';
     $('wp').innerHTML = last
-      ? 'Félicitations, tu es venu à bout de ce gameplay ! Tu peux maintenant rejouer chaque niveau pour tenter de faire le score max à chacun. Pour y accéder, tape la touche <b>m</b>.'
+      ? (SOLO ? 'Félicitations, tu es venu à bout de ce gameplay !'
+              : 'Félicitations, tu es venu à bout de ce gameplay ! Tu peux maintenant rejouer chaque niveau pour tenter de faire le score max à chacun. Pour y accéder, tape la touche <b>m</b>.')
       : '';
     $('winstars').innerHTML = starRow(stars[li]);
+    soloWinUI();
     $('win').classList.add('show');
   }
   else fail('programme terminé, mais l’objectif est manqué, relis le but.');
@@ -1614,9 +1633,8 @@ function handleWrite(ins, K){
 /* fin d'un step de tutoriel : renvoie true si un nouveau niveau a été chargé */
 function tutAdvance(){
   const st=tut.steps[tut.i]; tut.i++;
-  if(st.advance){ awardStars(li,3); tut=null;
-    if(SOLO){ soloAsk(li<LEVELS.length-1?li+1:0); return true; }   /* solo : questionnaire (type tuto) avant la suite */
-    loadLevel(li<LEVELS.length-1?li+1:0, true); return true; }
+  /* niveau tuto : jamais de questionnaire (la télémétrie suffit), on enchaîne — solo comme vocal */
+  if(st.advance){ awardStars(li,3); tut=null; loadLevel(li<LEVELS.length-1?li+1:0, true); return true; }
   if(tut.i>=tut.steps.length){ tut=null; lockUntil=performance.now()+350; }
   return false;
 }
@@ -1627,8 +1645,10 @@ document.addEventListener('keydown',e=>{
   if(!started) return;                          /* écran d'accueil : on attend la saisie du code */
   if($('soloq').classList.contains('show')) return;   /* questionnaire solo : bloque tout (ni touche de jeu, ni M/Ctrl+M) */
   TELE.key(K, expectedKeyNow(), e.ctrlKey);     /* flux de touches brut (si activé) */
-  /* Ctrl+M = menu des niveaux (dev), n'importe quand — traité AVANT le filtre des modificateurs */
+  /* Ctrl+M = menu des niveaux (dev), n'importe quand — traité AVANT le filtre des modificateurs.
+     En SOLO il est réservé au code admin : un saut de niveaux polluerait la courbe de difficulté. */
   if((K==='m'||K==='M') && e.ctrlKey){
+    if(SOLO && !isAdminSession) return;
     e.preventDefault();
     if($('menu').classList.contains('show')) $('menu').classList.remove('show'); else openMenu(false);
     return;
@@ -1668,10 +1688,12 @@ document.addEventListener('keydown',e=>{
   if($('pb').classList.contains('show')){ if(K==='p'||K==='P'||K==='Escape'){e.preventDefault();$('pb').classList.remove('show');TELE.pb(false);} return; }
   if($('menu').classList.contains('show')){ if(K==='Escape'){e.preventDefault();$('menu').classList.remove('show');} return; }
   if($('win').classList.contains('show')){
-    if(K==='Enter'){ e.preventDefault();
-      if(SOLO) soloAsk(li<LEVELS.length-1?li+1:0);          /* solo : questionnaire avant le niveau suivant */
-      else { $('win').classList.remove('show'); loadLevel(li<LEVELS.length-1?li+1:0, true); }
+    if(SOLO){
+      if(soloAnswered) return;                              /* fin de partie solo : seul le bouton rouge termine */
+      if(K==='1'||K==='2'||K==='3'){ e.preventDefault(); soloQuick(K==='1'?'bien':K==='2'?'bof':'penible'); }
+      return;
     }
+    if(K==='Enter'){ e.preventDefault(); $('win').classList.remove('show'); loadLevel(li<LEVELS.length-1?li+1:0, true); }
     return;
   }
   if($('lose').classList.contains('show')){
@@ -1773,25 +1795,48 @@ function openPB(){
 loadLevel(0);
 
 /* ---- écran d'accueil : le jeu ne prend les touches qu'après la saisie du code ---- */
-let testerCode='';
 function beginGame(){ started=true; if(TELE.on) TELE.levelStart(li+1); if(SOLO) $('endsession').classList.add('show'); renderAll(); }
+function codeMsg(t){ const el=$('codemsg'); if(el) el.textContent=t||''; }
 function submitCode(){
-  const c=$('codein').value.trim();
-  if(!c){ $('codein').focus(); return; }
-  testerCode=c;
-  const admin=TELE.isAdmin(c);
-  TELE.start(c);                          /* démarre la télémétrie (sauf code admin) */
+  const raw=$('codein').value.trim();
+  if(!raw){ $('codein').focus(); return; }
+  const admin=TELE.isAdmin(raw);
+  const c=admin ? raw : raw.toUpperCase();
+  /* validation du code : format exact + cohérence avec le lien (V = vocal sans ?solo, S = solo) */
+  if(!admin){
+    if(!/^S\d{2}-P\d{1,3}-[VS]$/.test(c)){ codeMsg('Code invalide : recopie exactement le code reçu en message privé (ex. S04-P06-S).'); return; }
+    if(SOLO && c.slice(-1)!=='S'){ codeMsg('Ton code se termine par -V (session vocale) mais tu es sur le lien solo : vérifie le lien ou le code avec le créateur.'); return; }
+    if(!SOLO && c.slice(-1)!=='V'){ codeMsg('Ton code se termine par -S (session solo) mais tu es sur le lien vocal : vérifie le lien ou le code avec le créateur.'); return; }
+  }
+  codeMsg('');
+  testerCode=c; isAdminSession=admin;
+  /* reprise après F5/crash (< 6 h, même code) + purge si NOUVEAU testeur sur cette machine */
+  let resume=null;
+  try{
+    const last=localStorage.getItem('gs_last_code');
+    if(!admin && last && last!==c){
+      localStorage.removeItem('gs_stars'); localStorage.removeItem('gs_resume'); localStorage.removeItem('gs_feedback_code');
+      stars={};
+    }
+    if(!admin){
+      localStorage.setItem('gs_last_code', c);
+      const r=JSON.parse(localStorage.getItem('gs_resume')||'null');
+      if(r && r.code===c && Date.now()-r.at<6*3600*1000 && r.lvl>0 && r.lvl<LEVELS.length) resume=r;
+    }
+  }catch(e){}
+  TELE.start(c, resume?resume.sid:null);  /* démarre la télémétrie (sauf code admin) ; reprise = même session */
   if(admin) $('adminbadge').classList.add('show');
   $('codeov').classList.remove('show');
-  if(SOLO){ $('solorules').classList.add('show'); const r=$('soloruleschk'); if(r) r.focus(); return; }  /* solo : écran de règles d'abord */
+  if(resume){ started=true; if(SOLO) $('endsession').classList.add('show'); loadLevel(resume.lvl); bubble('Session reprise au niveau '+(resume.lvl+1)); return; }
+  if(SOLO){ $('solorules').classList.add('show'); const r2=$('soloruleschk'); if(r2) r2.focus(); return; }  /* solo : écran de règles d'abord */
   beginGame();
 }
 /* SOLO : fin de session manuelle -> envoie les logs, puis questionnaire (code pré-rempli) */
 if($('endsession')){
   $('endsession').onclick=()=>{
-    if(!confirm('Mettre fin à la session de test ? Tu ne pourras plus jouer.')) return;
+    if(!confirm('Tu passes au questionnaire final (2 minutes). Merci !')) return;
     TELE.end();
-    try{ localStorage.setItem('gs_feedback_code', testerCode); }catch(e){}
+    try{ localStorage.setItem('gs_feedback_code', testerCode); localStorage.removeItem('gs_resume'); }catch(e){}
     location.href='test-feedback.html';
   };
 }
@@ -1811,53 +1856,85 @@ if($('solorulesgo')){
   $('solorulesgo').onclick=soloRulesCheck;
   $('soloruleschk').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); soloRulesCheck(); } });
 }
-/* ---- SOLO : questionnaire par niveau (adaptatif : tuto = "clair ?", sinon ressenti, explications si négatif) ---- */
-let soloNext=0, soloStep='', soloAns=null;
-const SOLO_NEG={frustration:'la frustration', ennui:"l'ennui", hesite:"le fait d'avoir failli arrêter", gap:'la difficulté'};
-function soloAsk(nextIdx){
-  soloNext=nextIdx;
-  soloAns={lvl:li+1, type: level.def.tuto ? 'tuto' : 'standard', ressenti:{}, remark:'', explanations:{}};
-  soloStep = soloAns.type==='tuto' ? 'tuto' : 'ressenti';
+/* ---- SOLO : ressenti par niveau, ÉCHANTILLONNÉ pour ne pas fabriquer l'ennui qu'on mesure ----
+   - niveaux tuto : rien (la télémétrie suffit)
+   - chaque niveau standard réussi : barre 1 clic dans l'écran de victoire (Bien / Bof / Pénible)
+   - questionnaire complet SEULEMENT sur les niveaux clés : 1 sur 4, la zone du mur (28-32),
+     ou quand la télémétrie sent une galère (game over, pause >= 8 s sur le niveau)
+   - formulaire mono-écran : cocher une case négative déplie un champ INLINE, facultatif
+     (un mot suffit) sauf pour "hésité à arrêter" et "gap" (obligatoires, « idk » accepté) */
+const SOLO_NEG={frustration:{lbl:'la frustration',req:false}, ennui:{lbl:"l'ennui",req:false},
+                hesite:{lbl:'pourquoi tu as failli arrêter',req:true}, gap:{lbl:'quelle a été la difficulté',req:true}};
+function soloFullTrigger(){
+  const n=li+1;
+  return n%4===0 || (n>=28&&n<=32) || gameovers>0 || TELE.pausedThisLevel;
+}
+/* barre 1 clic dans l'écran de victoire (remplace "Entrée" en solo) */
+function soloWinUI(){
+  const q=$('winquick'), g=$('wingo');
+  if(!SOLO){ if(q) q.innerHTML=''; if(g) g.style.display=''; return; }
+  g.style.display='none';
+  soloShownAt=Date.now(); TELE.soloqShow('quick');
+  q.innerHTML='<p class="wq">Ce niveau, en un mot ?</p><div class="soloqbtns">'
+    +'<button data-q="bien"><b>1</b> Bien</button>'
+    +'<button data-q="bof"><b>2</b> Bof</button>'
+    +'<button data-q="penible"><b>3</b> Pénible</button></div>';
+  q.querySelectorAll('button').forEach(b=>b.onclick=()=>soloQuick(b.dataset.q));
+}
+function soloQuick(choice){
+  TELE.feedback({lvl:li+1, kind:'quick', quick:choice, ms:Date.now()-soloShownAt});
+  const last=li===LEVELS.length-1, next=last?0:li+1;
+  if(soloFullTrigger()){ soloAsk(next, last); return; }
+  soloAfter(last, next);
+}
+function soloAfter(last, next){
+  if(last){    /* fin du jeu en solo : on guide vers le bouton rouge, plus rien d'autre à faire */
+    soloAnswered=true;
+    $('winquick').innerHTML='<p class="wq" style="color:var(--ok)">Merci ! Clique le bouton rouge en haut à droite pour terminer.</p>';
+    $('win').classList.add('show');
+    return;
+  }
   $('win').classList.remove('show');
-  $('soloq').classList.add('show');
-  soloRender();
+  loadLevel(next, true);
 }
 function soloCard(){ return $('soloq').firstElementChild; }
-function soloChk(k,label){ return '<label class="solochk"><input type="checkbox" data-k="'+k+'"> '+label+'</label>'; }
-function soloNegList(){ return ['frustration','ennui','hesite','gap'].filter(k=>soloAns.ressenti[k]); }
-function soloRender(){
-  const c=soloCard();
-  if(soloStep==='tuto'){
-    c.innerHTML='<h2>Niveau '+soloAns.lvl+'</h2><p>Le tuto était clair ?</p>'
-      +'<div class="soloqbtns"><button data-v="oui">Oui</button><button data-v="entre">Entre les deux</button><button data-v="non">Non</button></div>';
-    c.querySelectorAll('.soloqbtns button').forEach(b=>b.onclick=()=>{ soloAns.tutoClair=b.dataset.v; soloDone(); });
-  } else if(soloStep==='ressenti'){
-    c.innerHTML='<h2>Niveau '+soloAns.lvl+'</h2><p>Comment tu as vécu ce niveau ? (coche ce qui s\'applique)</p>'
-      +soloChk('amuse','Je me suis amusé(e)')+soloChk('neutre','Je suis resté(e) neutre')
-      +soloChk('frustration','J\'ai ressenti de la frustration')+soloChk('ennui','Je me suis ennuyé(e)')
-      +soloChk('hesite','J\'ai hésité à arrêter (mais je continue)')+soloChk('gap','J\'ai senti un trop gros gap de difficulté')
-      +'<label class="sololbl">Remarque libre (facultatif)</label><textarea id="soloremark" rows="2"></textarea>'
-      +'<p id="soloqmsg"></p><div><button id="soloqval" class="aidbtn">Valider ▸</button></div>';
-    $('soloqval').onclick=soloRessentiVal;
-  } else if(soloStep==='explain'){
-    let h='<h2>Niveau '+soloAns.lvl+'</h2>';
-    soloNegList().forEach(k=>{ h+='<label class="sololbl">Explique '+SOLO_NEG[k]+' (dis « idk » si tu n\'as pas d\'idée)</label><textarea class="soloexp" data-k="'+k+'" rows="2"></textarea>'; });
-    h+='<p id="soloqmsg"></p><div><button id="soloqval" class="aidbtn">Valider ▸</button></div>';
-    c.innerHTML=h; $('soloqval').onclick=soloExplainVal;
+function soloAsk(nextIdx, last){
+  soloNext=nextIdx; soloLast=!!last;
+  soloAns={lvl:li+1, kind:'full'};
+  $('win').classList.remove('show');
+  $('soloq').classList.add('show');
+  soloShownAt=Date.now(); TELE.soloqShow('full');
+  function chk(k,label){
+    const neg=SOLO_NEG[k];
+    let h='<label class="solochk"><input type="checkbox" data-k="'+k+'"> '+label+'</label>';
+    if(neg) h+='<div class="soloexpw" data-for="'+k+'"><input type="text" class="soloexp" data-k="'+k+'" placeholder="'
+      +(neg.req ? 'explique '+neg.lbl+' (« idk » si tu ne sais pas)' : 'un mot suffit (facultatif)')+'"></div>';
+    return h;
   }
-}
-function soloRessentiVal(){
   const c=soloCard();
-  soloAns.ressenti={}; c.querySelectorAll('input[type=checkbox]').forEach(x=>{ if(x.checked) soloAns.ressenti[x.dataset.k]=true; });
-  soloAns.remark=$('soloremark').value.trim();
-  if(!Object.keys(soloAns.ressenti).length && !soloAns.remark){ $('soloqmsg').textContent='Merci de remplir au moins une condition.'; return; }
-  if(soloNegList().length){ soloStep='explain'; soloRender(); } else soloDone();
+  c.innerHTML='<h2>Niveau '+(li+1)+' / '+LEVELS.length+'</h2><p>Quelques questions sur ce niveau (coche ce qui s\'applique)</p>'
+    +chk('amuse','Je me suis amusé(e)')+chk('neutre','Je suis resté(e) neutre')
+    +chk('frustration','J\'ai ressenti de la frustration')+chk('ennui','Je me suis ennuyé(e)')
+    +chk('hesite','J\'ai hésité à arrêter (mais je continue)')+chk('gap','J\'ai senti un trop gros gap de difficulté')
+    +'<label class="sololbl">Remarque libre (facultatif)</label><textarea id="soloremark" rows="2"></textarea>'
+    +'<p id="soloqmsg"></p><div><button id="soloqval" class="aidbtn">Valider ▸</button></div>';
+  c.querySelectorAll('input[type=checkbox]').forEach(x=>x.addEventListener('change',()=>{
+    const w=c.querySelector('.soloexpw[data-for="'+x.dataset.k+'"]'); if(w) w.classList.toggle('show', x.checked);
+  }));
+  $('soloqval').onclick=soloVal;
 }
-function soloExplainVal(){
-  const c=soloCard(); const exps={}; let missing=false;
-  c.querySelectorAll('.soloexp').forEach(t=>{ const v=t.value.trim(); if(!v) missing=true; exps[t.dataset.k]=v; });
-  if(missing){ $('soloqmsg').textContent='Merci de tout compléter avant de passer à la suite.'; return; }
-  soloAns.explanations=exps; soloDone();
+function soloVal(){
+  const c=soloCard();
+  const res={}; c.querySelectorAll('input[type=checkbox]').forEach(x=>{ if(x.checked) res[x.dataset.k]=true; });
+  const remark=$('soloremark').value.trim();
+  if(!Object.keys(res).length && !remark){ $('soloqmsg').textContent='Merci de cocher au moins une case (ou d\'écrire une remarque).'; return; }
+  const exps={}; let missing=null;
+  c.querySelectorAll('.soloexp').forEach(t=>{ const k=t.dataset.k, v=t.value.trim();
+    if(res[k]){ if(v) exps[k]=v; else if(SOLO_NEG[k].req && !missing) missing=k; } });
+  if(missing){ $('soloqmsg').textContent='Explique '+SOLO_NEG[missing].lbl+' (« idk » accepté).'; return; }
+  soloAns.ressenti=res; soloAns.remark=remark; soloAns.explanations=exps; soloAns.ms=Date.now()-soloShownAt;
+  TELE.feedback(soloAns);
+  $('soloq').classList.remove('show');
+  soloAfter(soloLast, soloNext);
 }
-function soloDone(){ TELE.feedback(soloAns); $('soloq').classList.remove('show'); loadLevel(soloNext, true); }
 </script>

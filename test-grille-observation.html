@@ -172,8 +172,10 @@ function buildReport(){
     perLvl[e.lvl]=perLvl[e.lvl]||{};
     perLvl[e.lvl][e.type]=(perLvl[e.lvl][e.type]||0)+1;
   });
+  const tzh=-new Date().getTimezoneOffset()/60;
   const L=[
     '=== OBSERVATION GAMESHELL ('+new Date().toLocaleDateString('fr-FR')+') ===',
+    'Exporté : '+new Date().toISOString()+' · heures locales UTC'+(tzh>=0?'+':'')+tzh+' (pour recouper avec la télémétrie)',
     'Code testeur : '+(S.who||'-')+' · '+S.events.length+' entrée'+(S.events.length>1?'s':''),
     '(quantitatif — temps, erreurs, game overs — dans les logs auto du jeu ; à recouper à l\'heure réelle)',
     '',
