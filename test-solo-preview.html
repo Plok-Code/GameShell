@@ -1211,7 +1211,7 @@ const TELE = (function(){
   const FLUSH_MS   = 10000;
   const TRIVIAL_MS = 12000;          /* réussite < 12 s + 0 erreur + 0 game over = "trivial" (flag auto) */
   const PAUSE_MS   = 8000;           /* >= 8 s sans action = pause/hésitation : événement auto avec sa durée */
-  let on=false, sid='', code='', startWall=0, buf=[], summarySent=false, stats=null, lvlStart=0, curLvl=1, lastKeyAt=0;
+  let on=false, sid='', code='', startWall=0, buf=[], summaryFinal=false, summarySeq=0, batchSeq=0, stats=null, lvlStart=0, curLvl=1, lastKeyAt=0;
   const iso = ()=>new Date().toISOString();
   const dev = ()=>({ua:navigator.userAgent, sw:screen.width, sh:screen.height, vw:innerWidth, vh:innerHeight,
                     dpr:devicePixelRatio, lang:navigator.language,
@@ -1227,12 +1227,24 @@ const TELE = (function(){
   }
   function pl(l){ return stats.perLevel[l] || (stats.perLevel[l]={time:0,errors:0,gameovers:0,timeouts:0,stars:null,trivial:false}); }
   function push(type,d){ if(!on) return; buf.push({t:Date.now(), lvl:curLvl, type, d:d||{}}); if(buf.length>=250) flush(false); }
-  function flush(final){
+  /* kind : false = lot périodique · 'partial' = onglet masqué (alt-tab) · 'final' = vraie fin (bouton, jeu fini, fermeture).
+     Le résumé part avec chaque partial/final (flag partial + summarySeq) : au dépouillement, le résumé
+     au summarySeq le plus haut fait foi. AVANT : le résumé partait UNE fois au 1er alt-tab et se figeait là. */
+  function flush(kind){
     if(!on) return;
-    if(!buf.length && !(final && !summarySent)) return;
-    const payload={sessionId:sid, code, events:buf.splice(0)};
-    if(final && !summarySent){ payload.summary=Object.assign({},stats,{endedAt:iso(),durationMs:Date.now()-startWall}); summarySent=true; }
-    try{ navigator.sendBeacon(WEBHOOK, new Blob([JSON.stringify(payload)],{type:'text/plain;charset=utf-8'})); }catch(e){}
+    const wantSummary = kind && !summaryFinal;
+    if(!buf.length && !wantSummary) return;
+    const events=buf.splice(0);
+    const payload={sessionId:sid, code, seq:++batchSeq, events};
+    if(wantSummary){
+      payload.summary=Object.assign({},stats,{endedAt:iso(), durationMs:Date.now()-startWall,
+        partial: kind==='partial', summarySeq: ++summarySeq});
+      if(kind==='final') summaryFinal=true;
+    }
+    let ok=false;
+    try{ ok=navigator.sendBeacon(WEBHOOK, new Blob([JSON.stringify(payload)],{type:'text/plain;charset=utf-8'})); }catch(e){}
+    /* refus (quota, réseau, bloqueur) : on remet les événements en tête, ils repartiront au prochain flush */
+    if(!ok){ buf.unshift(...events); batchSeq--; if(wantSummary && kind==='final') summaryFinal=false; }
   }
   return {
     isAdmin, get on(){ return on; },
@@ -1248,8 +1260,8 @@ const TELE = (function(){
                totalErrors:0, totalGameovers:0, totalTimeouts:0, perLevel:{}};
       push('session_start',{device:stats.device});
       setInterval(()=>flush(false), FLUSH_MS);
-      addEventListener('pagehide', ()=>flush(true));
-      addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flush(true); });
+      addEventListener('pagehide', ()=>flush('final'));
+      addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flush('partial'); });
       return true;
     },
     levelStart(l){ curLvl=l; lvlStart=Date.now(); lastKeyAt=0; if(on){ pl(l); push('level_start',{}); } },
@@ -1268,8 +1280,8 @@ const TELE = (function(){
     pb(open){ push(open?'pb_open':'pb_close',{}); },
     menu(stars){ push('menu_open',{stars:!!stars}); },
     feedback(d){ push('level_feedback', d||{}); },   /* réponses du questionnaire solo par niveau */
-    end(){ flush(true); },                            /* fin de session manuelle : envoie tout (events + résumé) */
-    completed(){ if(!on)return; stats.completed=true; push('game_completed',{}); flush(true); }
+    end(){ flush('final'); },                         /* fin de session manuelle : envoie tout (events + résumé définitif) */
+    completed(){ if(!on)return; stats.completed=true; push('game_completed',{}); flush('final'); }
   };
 })();
 let started=false;   /* le jeu ne démarre qu'après la saisie du code */
@@ -1799,7 +1811,7 @@ if($('solorulesgo')){
   $('solorulesgo').onclick=soloRulesCheck;
   $('soloruleschk').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); soloRulesCheck(); } });
 }
-/* ---- SOLO : questionnaire par niveau (adaptatif : tuto = "clair ?", sinon ressenti + "quelqu'un ?" après) ---- */
+/* ---- SOLO : questionnaire par niveau (adaptatif : tuto = "clair ?", sinon ressenti, explications si négatif) ---- */
 let soloNext=0, soloStep='', soloAns=null;
 const SOLO_NEG={frustration:'la frustration', ennui:"l'ennui", hesite:"le fait d'avoir failli arrêter", gap:'la difficulté'};
 function soloAsk(nextIdx){
