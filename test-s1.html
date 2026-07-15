@@ -127,6 +127,15 @@
   #lose .card{border-color:#5c2333;max-width:460px}
   .card p{color:var(--dim);font-size:13px;line-height:1.5;margin:0}
   .card .go{margin-top:14px;color:var(--cyan);font-size:13px}
+  /* écran d'accueil : saisie du code */
+  #codeov{z-index:40}
+  #codein{background:#0e1020;border:1px solid #2a2d44;border-radius:8px;color:#eaf0ff;font-family:inherit;
+    font-size:15px;padding:10px 12px;margin:8px 0 12px;width:100%;text-align:center;letter-spacing:.05em}
+  #codein:focus{outline:none;border-color:var(--cyan)}
+  #codeov .aidbtn{display:inline-block;text-align:center;border-left-width:1px}
+  #codefine{color:var(--faint);font-size:11px;margin-top:16px}
+  #adminbadge{display:none;position:fixed;bottom:10px;right:12px;font-size:11px;color:var(--gold);opacity:.85;z-index:15}
+  #adminbadge.show{display:block}
   /* boutons d'aide opt-in sur l'écran de game over */
   #loseaids{display:flex;flex-direction:column;gap:8px;margin:14px 0 4px}
   #loseaids:empty{margin:0}
@@ -175,6 +184,14 @@
 <div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div id="winstars"></div><div class="go">Entrée ▸</div></div></div>
 <div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p id="losep"></p><div id="loseaids"></div></div></div>
 <div class="ov" id="pb"><div class="card"><h2>Pense-bête</h2><div id="pblist"></div><div id="pbempty">Rien encore : les notions s'ajoutent au fil du jeu.</div><div id="pbclose">P ou Échap pour fermer</div></div></div>
+<div class="ov show" id="codeov"><div class="card">
+  <h2>GameShell</h2>
+  <p>Entre ton code pour commencer.</p>
+  <input id="codein" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ton code">
+  <div><button id="codego" class="aidbtn">Commencer ▸</button></div>
+  <p id="codefine">Cette session enregistre ta progression (temps, erreurs) pour améliorer le jeu.</p>
+</div></div>
+<div id="adminbadge">● admin · non enregistré</div>
 
 <script>
 "use strict";
@@ -1150,6 +1167,62 @@ function gameDone(){ return stars[LEVELS.length-1] != null; }   /* jeu terminé 
 /* rendu des étoiles en SVG (monochrome maîtrisé, jamais un emoji) : n pleines sur 3 */
 function starSVG(on){ return '<svg viewBox="0 0 24 24" class="star'+(on?' on':'')+'"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'; }
 function starRow(n){ let h='<span class="stars">'; for(let i=0;i<3;i++) h+=starSVG(i<n); return h+'</span>'; }
+/* ===================== TÉLÉMÉTRIE (flux d'événements horodaté -> Google Sheet) =====================
+   Le testeur entre un code au lancement -> tout se logge seul. Le CODE ADMIN n'enregistre rien.
+   On envoie par lots via sendBeacon (résiste à la fermeture d'onglet). Le résumé part une seule fois. */
+const VERSION = 'proto01-v4';
+const TELE = (function(){
+  const WEBHOOK    = 'https://script.google.com/macros/s/AKfycbyZyqdosEV2fGqJ8gOwrOozd1XVc8aHW_ay0Y9BMxNltlNpxWjiEDF10wekA1UQrtiX/exec';
+  const ADMIN_CODE = 'PLOK-ADMIN';   /* ce code = aucun enregistrement (à toi ; insensible à la casse) */
+  const LOG_KEYS   = true;           /* flux de touches brut : le plus riche, mais beaucoup de lignes */
+  const FLUSH_MS   = 10000;
+  const TRIVIAL_MS = 12000;          /* réussite < 12 s + 0 erreur + 0 game over = "trivial" (flag auto) */
+  let on=false, sid='', code='', startWall=0, buf=[], summarySent=false, stats=null, lvlStart=0, curLvl=1;
+  const iso = ()=>new Date().toISOString();
+  const dev = ()=>({ua:navigator.userAgent, sw:screen.width, sh:screen.height, vw:innerWidth, vh:innerHeight,
+                    dpr:devicePixelRatio, lang:navigator.language,
+                    tz:(Intl.DateTimeFormat().resolvedOptions().timeZone||''), touch:('ontouchstart' in window)});
+  function isAdmin(c){ return String(c).trim().toUpperCase()===ADMIN_CODE.toUpperCase(); }
+  function pl(l){ return stats.perLevel[l] || (stats.perLevel[l]={time:0,errors:0,gameovers:0,timeouts:0,stars:null,trivial:false}); }
+  function push(type,d){ if(!on) return; buf.push({t:Date.now(), lvl:curLvl, type, d:d||{}}); if(buf.length>=250) flush(false); }
+  function flush(final){
+    if(!on) return;
+    if(!buf.length && !(final && !summarySent)) return;
+    const payload={sessionId:sid, code, events:buf.splice(0)};
+    if(final && !summarySent){ payload.summary=Object.assign({},stats,{endedAt:iso(),durationMs:Date.now()-startWall}); summarySent=true; }
+    try{ navigator.sendBeacon(WEBHOOK, new Blob([JSON.stringify(payload)],{type:'text/plain;charset=utf-8'})); }catch(e){}
+  }
+  return {
+    isAdmin, get on(){ return on; },
+    start(c){
+      code=String(c).trim();
+      if(isAdmin(c)){ on=false; return false; }        /* mode admin : rien n'est enregistré */
+      on=true;
+      sid = Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+      startWall = Date.now();
+      stats = {code, version:VERSION, startedAt:iso(), device:dev(), lastLevel:1, completed:false,
+               totalErrors:0, totalGameovers:0, totalTimeouts:0, perLevel:{}};
+      push('session_start',{device:stats.device});
+      setInterval(()=>flush(false), FLUSH_MS);
+      addEventListener('pagehide', ()=>flush(true));
+      addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flush(true); });
+      return true;
+    },
+    levelStart(l){ curLvl=l; lvlStart=Date.now(); if(on){ pl(l); push('level_start',{}); } },
+    key(k,expected,ctrl){ if(on && LOG_KEYS) push('key',{k, exp:expected||null, ctrl:!!ctrl}); },
+    error(reason){ if(!on)return; pl(curLvl).errors++; stats.totalErrors++; push('error',{reason}); },
+    gameover(cause){ if(!on)return; const p=pl(curLvl); p.gameovers++; stats.totalGameovers++;
+      if(cause==='timeout'){ p.timeouts++; stats.totalTimeouts++; } push('game_over',{cause}); },
+    win(l,starsN,gos){ if(!on)return; const p=pl(l), t=Date.now()-lvlStart; p.time+=t; p.stars=starsN;
+      p.trivial=(gos===0 && p.errors===0 && t<TRIVIAL_MS); stats.lastLevel=Math.max(stats.lastLevel,l);
+      push('level_win',{stars:starsN, gameovers:gos, timeMs:t, trivial:p.trivial}); },
+    aid(kind){ push('aid',{kind}); },
+    pb(open){ push(open?'pb_open':'pb_close',{}); },
+    menu(stars){ push('menu_open',{stars:!!stars}); },
+    completed(){ if(!on)return; stats.completed=true; push('game_completed',{}); flush(true); }
+  };
+})();
+let started=false;   /* le jeu ne démarre qu'après la saisie du code */
 /* timer par niveau (non-tuto) : temps = max(2 min, 30 s par ligne-geste). Game over si le temps tombe à 0. */
 let timeLeft=0;
 function levelTime(){ if(!level) return 0; const n=level.instrs.filter(i=>i.type==='call'||i.type==='write').length; return Math.max(120, 30*n); }
@@ -1163,12 +1236,13 @@ function renderTimer(){
 }
 /* décrémenté chaque seconde, sauf en tuto / dialogue / écran (game over, victoire, menu, pense-bête) */
 function timerTick(){
-  if(!level || tut || dlgPagesActive()) return;
+  if(!started || !level || tut || dlgPagesActive()) return;
   if($('win').classList.contains('show')||$('lose').classList.contains('show')
      ||$('menu').classList.contains('show')||$('pb').classList.contains('show')) return;
   if(timeLeft>0){ timeLeft--; renderTimer(); if(timeLeft<=0) timeoutFail(); }
 }
 function timeoutFail(){
+  TELE.gameover('timeout');
   gameovers++; errors=0; resetState(); buildLoseScreen('Temps écoulé sur ce niveau.'); render();
   loseAt=performance.now();
   $('lose').classList.add('show');
@@ -1219,6 +1293,7 @@ function loadLevel(n, seq){
   dlgIdx = pages.length ? 0 : -1;
   timeLeft = tut ? 0 : levelTime();
   resetState(); renderAll();
+  TELE.levelStart(n+1);
   if(!pages.length && !tut) flushNoteChips();
 }
 function flushNoteChips(){
@@ -1404,7 +1479,8 @@ function bubble(t){ const b=$('bubble'); b.innerHTML=t; b.classList.add('show');
 function ok(){ G.steps++; runFree(); render(); const c=cur(); if(c&&c.type==='end') checkWin(); }
 function fail(msg){
   errors++;
-  if(errors>=3){ errors=0; gameovers++; resetState(); buildLoseScreen(); render();
+  TELE.error(msg);
+  if(errors>=3){ TELE.gameover('3 erreurs'); errors=0; gameovers++; resetState(); buildLoseScreen(); render();
     loseAt=performance.now();              /* verrou anti-zap : Entrée inopérante ~800 ms (S3-P04 fermait sans voir les aides) */
     $('lose').classList.add('show'); return; }
   resetState();
@@ -1432,8 +1508,8 @@ function buildLoseScreen(reason){
 /* [1] = active l'aide du palier courant : coup de pouce (premiers niveaux),
    sinon surlignage au 1er game over puis, au 2e, les variables en plus. */
 function loseHelp(){
-  if(li<HL_OFF){ aidGuide=true; }
-  else { aidLines=true; if(gameovers>=2 && loseVarsHidden()) aidVars=true; }
+  if(li<HL_OFF){ aidGuide=true; TELE.aid('guide'); }
+  else { aidLines=true; const v=(gameovers>=2 && loseVarsHidden()); if(v) aidVars=true; TELE.aid(v?'variables':'surlignage'); }
   closeLose();
 }
 function loseRetry(){ closeLose(); }
@@ -1443,6 +1519,8 @@ function checkWin(){
   if(level.def.win(G)){
     awardStars(li, starsFor(gameovers));           /* 0 game over = 3 étoiles, 1 = 2, 2+ = 1 (meilleur conservé) */
     const last = li===LEVELS.length-1;
+    TELE.win(li+1, stars[li], gameovers);
+    if(last) TELE.completed();
     $('wt').textContent = last ? 'Bravo' : 'Niveau réussi';
     $('wp').innerHTML = last
       ? 'Félicitations, tu es venu à bout de ce gameplay ! Tu peux maintenant rejouer chaque niveau pour tenter de faire le score max à chacun. Pour y accéder, tape la touche <b>m</b>.'
@@ -1501,6 +1579,8 @@ function togglePB(){ if($('pb').classList.contains('show')) $('pb').classList.re
 
 document.addEventListener('keydown',e=>{
   const K=e.key;
+  if(!started) return;                          /* écran d'accueil : on attend la saisie du code */
+  TELE.key(K, expectedKeyNow(), e.ctrlKey);     /* flux de touches brut (si activé) */
   /* Ctrl+M = menu des niveaux (dev), n'importe quand — traité AVANT le filtre des modificateurs */
   if((K==='m'||K==='M') && e.ctrlKey){
     e.preventDefault();
@@ -1539,7 +1619,7 @@ document.addEventListener('keydown',e=>{
     if(K==='Enter' && performance.now()-dlgShownAt>400){ e.preventDefault(); if(!tutAdvance()) renderAll(); }
     return;
   }
-  if($('pb').classList.contains('show')){ if(K==='p'||K==='P'||K==='Escape'){e.preventDefault();$('pb').classList.remove('show');} return; }
+  if($('pb').classList.contains('show')){ if(K==='p'||K==='P'||K==='Escape'){e.preventDefault();$('pb').classList.remove('show');TELE.pb(false);} return; }
   if($('menu').classList.contains('show')){ if(K==='Escape'){e.preventDefault();$('menu').classList.remove('show');} return; }
   if($('win').classList.contains('show')){
     if(K==='Enter'){ e.preventDefault(); $('win').classList.remove('show'); loadLevel(li<LEVELS.length-1?li+1:0, true); }
@@ -1614,6 +1694,7 @@ function handleCall(ins, K){
 /* menu des niveaux, accès libre (prototype) */
 /* showStars : menu de rejeu (touche m, jeu terminé) qui affiche les étoiles ; sinon menu dev (Ctrl+M) */
 function openMenu(showStars){
+  TELE.menu(showStars);
   const list=$('menulist'); list.innerHTML='';
   $('menutitle').textContent = showStars ? 'Niveaux · rejoue pour le score max' : 'Niveaux · accès libre (prototype)';
   $('menuclose').textContent = showStars ? 'm ou Échap pour fermer · clique un niveau pour le rejouer'
@@ -1631,6 +1712,7 @@ function openMenu(showStars){
   $('menu').classList.add('show');
 }
 function openPB(){
+  TELE.pb(true);
   const list=$('pblist'); list.innerHTML='';
   unlocked.forEach(id=>{ const n=NOTES[id]; if(!n)return;
     const d=document.createElement('div'); d.className='note';
@@ -1643,4 +1725,22 @@ loadLevel(0);
 /* horloge du timer : 1 tick/seconde. unref() en environnement Node (harnais) pour ne pas retenir le process. */
 const _timerInt = setInterval(timerTick, 1000);
 if(_timerInt && typeof _timerInt.unref==='function') _timerInt.unref();
+
+/* ---- écran d'accueil : le jeu ne prend les touches qu'après la saisie du code ---- */
+function submitCode(){
+  const c=$('codein').value.trim();
+  if(!c){ $('codein').focus(); return; }
+  const admin=TELE.isAdmin(c);
+  TELE.start(c);                          /* démarre la télémétrie (sauf code admin) */
+  started=true;
+  if(TELE.on) TELE.levelStart(li+1);      /* horodate le vrai départ du niveau courant */
+  if(admin) $('adminbadge').classList.add('show');
+  $('codeov').classList.remove('show');
+  renderAll();
+}
+if($('codego')){
+  $('codego').onclick=submitCode;
+  $('codein').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); submitCode(); } });
+  $('codein').focus();
+}
 </script>

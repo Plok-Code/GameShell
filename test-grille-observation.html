@@ -60,6 +60,9 @@
 
 <div id="app">
   <h1>Grille d'observation</h1>
+  <div class="sub">Le <b>quantitatif</b> (temps, erreurs, game overs, timeouts, niveaux, étoiles, touches) est
+  désormais logué <b>automatiquement</b> par le jeu. Ici tu ne notes plus que le <b>subjectif</b> : déclic,
+  ennui, réactions, citations. On recoupe les deux flux à l'heure réelle après la session.</div>
   <div id="saveline"><span id="savedot"></span><span id="savetxt">prêt</span></div>
   <div id="restored"></div>
 
@@ -81,14 +84,11 @@
   <div class="q actions">
     <button class="pos" data-ev="déclic (comprend seule)" title="Elle pige une mécanique sans qu'on lui dise : ahh d'accord !. LE signal clé de ce test (déduire sans carton).">Déclic</button>
     <button class="pos" data-ev="réaction positive" title="Plaisir : sourire, cool, c'est satisfaisant.">Réaction positive</button>
-    <button class="neg" data-ev="erreur" title="Une erreur = la bulle rouge d'erreur du jeu.">Erreur</button>
-    <button class="neg" data-ev="game over" title="3 erreurs : le niveau recommence.">Game over</button>
     <button class="neg" data-ev="hésitation longue" title="Bloquée ~10 s ou plus sans agir, OU elle dit tout haut qu'elle est coincée.">Hésitation longue</button>
     <button class="neg" data-ev="signe d'ennui" title="Soupir, c'est long, déconcentration, regarde ailleurs.">Signe d'ennui</button>
     <button class="neg" data-ev="critique / négatif" title="Avis négatif sur le jeu (c'est mal foutu, chiant). Tape la phrase exacte en note.">Critique</button>
     <button class="neg" data-ev="veut arrêter" title="Elle parle d'arrêter / décroche. Le décrochage = le problème n°1 à traquer.">Veut arrêter</button>
     <button class="neu" data-ev="question / aide" title="Elle demande QUOI faire ou COMMENT ça marche (besoin d'aide pour avancer). ≠ un avis.">Question / aide</button>
-    <button class="neu" data-ev="pense-bête ouvert" title="Elle ouvre le pense-bête (touche P) : elle se sert du filet.">Pense-bête ouvert</button>
     <button class="neu" data-ev="bug" title="Comportement anormal du jeu.">Bug</button>
   </div>
   <div class="q twoin">
