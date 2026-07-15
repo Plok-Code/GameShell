@@ -131,6 +131,11 @@
   #codefine{color:var(--faint);font-size:11px;margin-top:16px}
   #adminbadge{display:none;position:fixed;bottom:10px;right:12px;font-size:11px;color:var(--gold);opacity:.85;z-index:15}
   #adminbadge.show{display:block}
+  /* SOLO : bouton "fin de session" toujours visible, au-dessus de tout */
+  #endsession{display:none;position:fixed;top:12px;right:12px;z-index:50;background:#1a0e14;border:1px solid #5c2333;
+    color:#c98a97;border-radius:8px;font-family:inherit;font-size:12px;padding:7px 11px;cursor:pointer}
+  #endsession:hover{border-color:var(--err);color:#e8b5c0}
+  #endsession.show{display:block}
   /* SOLO : écran de règles + questionnaire par niveau */
   #solorules, #soloq{z-index:45}
   #solorules .card, #soloq .card{max-width:520px;text-align:left}
@@ -206,6 +211,7 @@
   <p id="codefine">Cette session enregistre ta progression (temps, erreurs) pour améliorer le jeu.</p>
 </div></div>
 <div id="adminbadge">● admin · non enregistré</div>
+<button id="endsession">Mettre fin à la session de test</button>
 
 <!-- SOLO : écran de règles (mode ?solo uniquement) -->
 <div class="ov" id="solorules"><div class="card">
@@ -1262,6 +1268,7 @@ const TELE = (function(){
     pb(open){ push(open?'pb_open':'pb_close',{}); },
     menu(stars){ push('menu_open',{stars:!!stars}); },
     feedback(d){ push('level_feedback', d||{}); },   /* réponses du questionnaire solo par niveau */
+    end(){ flush(true); },                            /* fin de session manuelle : envoie tout (events + résumé) */
     completed(){ if(!on)return; stats.completed=true; push('game_completed',{}); flush(true); }
   };
 })();
@@ -1754,16 +1761,27 @@ function openPB(){
 loadLevel(0);
 
 /* ---- écran d'accueil : le jeu ne prend les touches qu'après la saisie du code ---- */
-function beginGame(){ started=true; if(TELE.on) TELE.levelStart(li+1); renderAll(); }
+let testerCode='';
+function beginGame(){ started=true; if(TELE.on) TELE.levelStart(li+1); if(SOLO) $('endsession').classList.add('show'); renderAll(); }
 function submitCode(){
   const c=$('codein').value.trim();
   if(!c){ $('codein').focus(); return; }
+  testerCode=c;
   const admin=TELE.isAdmin(c);
   TELE.start(c);                          /* démarre la télémétrie (sauf code admin) */
   if(admin) $('adminbadge').classList.add('show');
   $('codeov').classList.remove('show');
   if(SOLO){ $('solorules').classList.add('show'); const r=$('soloruleschk'); if(r) r.focus(); return; }  /* solo : écran de règles d'abord */
   beginGame();
+}
+/* SOLO : fin de session manuelle -> envoie les logs, puis questionnaire (code pré-rempli) */
+if($('endsession')){
+  $('endsession').onclick=()=>{
+    if(!confirm('Mettre fin à la session de test ? Tu ne pourras plus jouer.')) return;
+    TELE.end();
+    try{ localStorage.setItem('gs_feedback_code', testerCode); }catch(e){}
+    location.href='test-feedback.html';
+  };
 }
 if($('codego')){
   $('codego').onclick=submitCode;
@@ -1786,7 +1804,7 @@ let soloNext=0, soloStep='', soloAns=null;
 const SOLO_NEG={frustration:'la frustration', ennui:"l'ennui", hesite:"le fait d'avoir failli arrêter", gap:'la difficulté'};
 function soloAsk(nextIdx){
   soloNext=nextIdx;
-  soloAns={lvl:li+1, type: level.def.tuto ? 'tuto' : 'standard', ressenti:{}, remark:'', explanations:{}, someone:null};
+  soloAns={lvl:li+1, type: level.def.tuto ? 'tuto' : 'standard', ressenti:{}, remark:'', explanations:{}};
   soloStep = soloAns.type==='tuto' ? 'tuto' : 'ressenti';
   $('win').classList.remove('show');
   $('soloq').classList.add('show');
@@ -1811,13 +1829,9 @@ function soloRender(){
     $('soloqval').onclick=soloRessentiVal;
   } else if(soloStep==='explain'){
     let h='<h2>Niveau '+soloAns.lvl+'</h2>';
-    soloNegList().forEach(k=>{ h+='<label class="sololbl">Explique '+SOLO_NEG[k]+' (dis « je ne sais pas » si tu n\'as pas d\'idée)</label><textarea class="soloexp" data-k="'+k+'" rows="2"></textarea>'; });
+    soloNegList().forEach(k=>{ h+='<label class="sololbl">Explique '+SOLO_NEG[k]+' (dis « idk » si tu n\'as pas d\'idée)</label><textarea class="soloexp" data-k="'+k+'" rows="2"></textarea>'; });
     h+='<p id="soloqmsg"></p><div><button id="soloqval" class="aidbtn">Valider ▸</button></div>';
     c.innerHTML=h; $('soloqval').onclick=soloExplainVal;
-  } else if(soloStep==='someone'){
-    c.innerHTML='<h2>Niveau '+soloAns.lvl+'</h2><p>Quelqu\'un t\'a parlé pendant ce niveau ? (même un rire ou un « tu galères ? »)</p>'
-      +'<div class="soloqbtns"><button data-v="non">Non</button><button data-v="oui">Oui</button></div>';
-    c.querySelectorAll('.soloqbtns button').forEach(b=>b.onclick=()=>{ soloAns.someone=b.dataset.v; soloDone(); });
   }
 }
 function soloRessentiVal(){
@@ -1825,13 +1839,13 @@ function soloRessentiVal(){
   soloAns.ressenti={}; c.querySelectorAll('input[type=checkbox]').forEach(x=>{ if(x.checked) soloAns.ressenti[x.dataset.k]=true; });
   soloAns.remark=$('soloremark').value.trim();
   if(!Object.keys(soloAns.ressenti).length && !soloAns.remark){ $('soloqmsg').textContent='Merci de remplir au moins une condition.'; return; }
-  soloStep = soloNegList().length ? 'explain' : 'someone'; soloRender();
+  if(soloNegList().length){ soloStep='explain'; soloRender(); } else soloDone();
 }
 function soloExplainVal(){
   const c=soloCard(); const exps={}; let missing=false;
   c.querySelectorAll('.soloexp').forEach(t=>{ const v=t.value.trim(); if(!v) missing=true; exps[t.dataset.k]=v; });
   if(missing){ $('soloqmsg').textContent='Merci de tout compléter avant de passer à la suite.'; return; }
-  soloAns.explanations=exps; soloStep='someone'; soloRender();
+  soloAns.explanations=exps; soloDone();
 }
 function soloDone(){ TELE.feedback(soloAns); $('soloq').classList.remove('show'); loadLevel(soloNext, true); }
 </script>

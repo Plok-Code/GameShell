@@ -211,6 +211,10 @@
     envoyées au créateur (via Formspree). Rien d'autre n'est collecté.</div>
 </div>
 
+<div id="donescreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:100;align-items:center;justify-content:center;text-align:center;padding:24px">
+  <div><h2 style="color:var(--ok);font-size:24px;margin:0 0 10px">Le test est terminé.</h2><p style="color:var(--txt);font-size:16px;margin:0">Merci de ta contribution&nbsp;!</p></div>
+</div>
+
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
@@ -317,9 +321,7 @@ $('sendbtn').addEventListener('click',async()=>{
       })
     });
     if(!r.ok) throw new Error('HTTP '+r.status);
-    btn.textContent='Envoyé';
-    msg.className='show ok';
-    msg.textContent='C\'est parti, merci beaucoup pour ton temps !';
+    $('donescreen').style.display='flex';   /* dialogue de fin */
   }catch(e){
     try{ await navigator.clipboard.writeText(t); }catch(_){}
     const pv=$('preview'); pv.textContent=t; pv.classList.add('show');
@@ -328,4 +330,6 @@ $('sendbtn').addEventListener('click',async()=>{
     msg.textContent='L\'envoi automatique a échoué : tes réponses sont copiées dans ton presse-papier : colle-les là où tu as reçu le lien. Merci !';
   }
 });
+/* code pré-rempli quand on arrive depuis le bouton "fin de session" du jeu (solo) */
+try{ const c=localStorage.getItem('gs_feedback_code'); if(c){ $('numtest').value=c; localStorage.removeItem('gs_feedback_code'); } }catch(e){}
 </script>
