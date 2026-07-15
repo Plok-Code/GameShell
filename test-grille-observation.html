@@ -22,10 +22,6 @@
   button{background:#0e1020;border:1px solid #2a2d44;border-radius:8px;color:var(--txt);
     font-family:inherit;font-size:13px;padding:9px 13px;cursor:pointer}
   button:hover{border-color:var(--cyan);color:#eafcff}
-  #start{border-color:var(--ok);color:var(--ok)}
-  #end{border-color:var(--err);color:#c98a97}
-  #end.done{border-color:var(--gold);color:var(--gold)}
-  #clock{font-size:18px;color:var(--gold);min-width:78px}
   #lvlbox{display:flex;align-items:center;gap:6px}
   #lvl{width:64px;text-align:center;font-size:16px;background:#0e1020;border:1px solid #2a2d44;
     border-radius:8px;color:var(--gold);font-family:inherit;padding:7px 4px}
@@ -71,10 +67,7 @@
   </div>
 
   <div class="q bar">
-    <button id="start">Démarrer</button>
-    <button id="end" title="Fige l'heure de fin et arrête le chrono.">Terminer</button>
-    <span id="clock">00:00</span>
-    <span id="lvlbox"><label style="display:inline">niveau</label>
+    <span id="lvlbox"><label style="display:inline">niveau (suis sa progression pour taguer tes notes)</label>
       <button id="lvldown">−</button><input id="lvl" value="1"><button id="lvlup">+</button></span>
     <span style="margin-left:auto"><button id="undo" title="Annuler la dernière entrée">Annuler</button></span>
   </div>
@@ -82,6 +75,7 @@
   <div class="q actions">
     <button class="pos" data-ev="déclic (comprend seule)" title="Elle pige une mécanique sans qu'on lui dise : ahh d'accord !. LE signal clé de ce test (déduire sans carton).">Déclic</button>
     <button class="pos" data-ev="réaction positive" title="Plaisir : sourire, cool, c'est satisfaisant.">Réaction positive</button>
+    <button class="neg" data-ev="signe de frustration" title="Agacement : soupir d'énervement, tension, « ça m'énerve », jure, tape sur la touche.">Signe de frustration</button>
     <button class="neg" data-ev="signe d'ennui" title="Soupir, c'est long, déconcentration, regarde ailleurs.">Signe d'ennui</button>
     <button class="neg" data-ev="veut arrêter" title="Elle parle d'arrêter / décroche. Le décrochage = le problème n°1 à traquer.">Veut arrêter</button>
   </div>
@@ -110,7 +104,7 @@
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-let S={t0:null, tEnd:null, lvl:1, events:[], who:''};
+let S={lvl:1, events:[], who:''};
 
 /* ---- persistance locale, avec retour visible ---- */
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -129,17 +123,12 @@ function save(){
 }
 function load(){ try{ const d=JSON.parse(localStorage.getItem('gs-obs')); if(d&&d.events) S=d; }catch(e){} }
 
-/* ---- temps ---- */
+/* ---- horodatage absolu (heure réelle, pour recouper avec les logs auto du jeu) ---- */
 const now=()=>Date.now();
-function fmt(ms){ const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor(s/60)%60, x=s%60;
-  const p=n=>String(n).padStart(2,'0');
-  return (h? h+':'+p(m) : p(m))+':'+p(x); }
-function stamp(){ return S.t0 ? fmt(now()-S.t0) : '--:--'; }
-setInterval(()=>{ $('clock').textContent = S.t0 ? fmt((S.tEnd||now())-S.t0) : '00:00'; }, 500);
+function hms(at){ const d=new Date(at); return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
 
 /* ---- événements ---- */
 function addEv(type, note){
-  if(!S.t0){ S.t0=now(); }                       /* première action = départ auto */
   S.events.push({at:now(), lvl:S.lvl, type, note:note||''});
   save(); render();
 }
@@ -147,7 +136,7 @@ function render(){
   const tb=$('log'); tb.innerHTML='';
   S.events.forEach(e=>{
     const tr=document.createElement('tr');
-    tr.innerHTML='<td class="t">'+fmt(e.at-S.t0)+'</td><td class="l">niv '+e.lvl+'</td>'+
+    tr.innerHTML='<td class="t">'+hms(e.at)+'</td><td class="l">niv '+e.lvl+'</td>'+
       '<td>'+e.type+(e.note?' : '+esc(e.note):'')+'</td>';
     tb.appendChild(tr);
   });
@@ -158,14 +147,6 @@ function render(){
 function esc(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
 /* ---- contrôles ---- */
-$('start').onclick=()=>{ if(!S.t0){ S.tEnd=null; S.t0=now(); addEv('début de session'); } };
-$('end').onclick=()=>{
-  if(S.t0 && !S.tEnd){
-    S.tEnd=now(); addEv('fin de session');
-    $('end').classList.add('done'); $('end').textContent='Session terminée';
-    $('savetxt').textContent='session terminée à '+fmt(S.tEnd-S.t0)+' · pense à télécharger le rapport';
-  }
-};
 function setLvl(n){
   n=Math.max(1,n|0)||1;
   if(n!==S.lvl){ S.lvl=n; addEv('arrivée au niveau'); }
@@ -182,37 +163,29 @@ $('note').addEventListener('keydown',e=>{
 });
 $('undo').onclick=()=>{ S.events.pop(); save(); render(); };
 ['who'].forEach(id=>$(id).addEventListener('input',()=>{ S[id]=$(id).value; save(); }));
-$('reset').onclick=()=>{ if(confirm('Effacer toute la session ?')){ S={t0:null,tEnd:null,lvl:1,events:[],who:''}; $('end').classList.remove('done'); $('end').textContent='Terminer'; save(); render(); $('out').value=''; } };
+$('reset').onclick=()=>{ if(confirm('Effacer toute la session ?')){ S={lvl:1,events:[],who:''}; save(); render(); $('out').value=''; } };
 
 /* ---- construction du rapport (partagée par copier + télécharger) ---- */
 function buildReport(){
   const perLvl={};
-  let prev=null;
-  const endT = S.tEnd || now();
   S.events.forEach(e=>{
-    const k=e.lvl;
-    perLvl[k]=perLvl[k]||{arrivee:null,temps:0,n:{}};
-    if(e.type==='arrivée au niveau'||e.type==='début de session'){
-      if(prev) perLvl[prev.lvl].temps += e.at-prev.at;
-      if(perLvl[k].arrivee==null) perLvl[k].arrivee = e.at-S.t0;
-      prev=e;
-    } else if(e.type!=='fin de session' && e.type!=='citation' && e.type!=='note') perLvl[k].n[e.type]=(perLvl[k].n[e.type]||0)+1;
+    if(e.type==='arrivée au niveau'||e.type==='citation'||e.type==='note') return;
+    perLvl[e.lvl]=perLvl[e.lvl]||{};
+    perLvl[e.lvl][e.type]=(perLvl[e.lvl][e.type]||0)+1;
   });
-  if(prev) perLvl[prev.lvl].temps += Math.max(0, endT-prev.at);
   const L=[
     '=== OBSERVATION GAMESHELL ('+new Date().toLocaleDateString('fr-FR')+') ===',
-    'Code testeur : '+(S.who||'-'),
-    'Durée totale : '+(S.t0?fmt(endT-S.t0):'-')+(S.tEnd?'':' (session en cours)'),
+    'Code testeur : '+(S.who||'-')+' · '+S.events.length+' entrée'+(S.events.length>1?'s':''),
+    '(quantitatif — temps, erreurs, game overs — dans les logs auto du jeu ; à recouper à l\'heure réelle)',
     '',
-    '--- Par niveau ---'
+    '--- Signaux par niveau ---'
   ];
   Object.keys(perLvl).map(Number).sort((a,b)=>a-b).forEach(k=>{
-    const v=perLvl[k];
-    const c=Object.entries(v.n).map(([t,n])=>t+(n>1?' x'+n:'')).join(', ');
-    L.push('niv '+k+' · arrivée '+(v.arrivee!=null?fmt(v.arrivee):'--')+' · temps '+fmt(v.temps)+(c?' · '+c:''));
+    const c=Object.entries(perLvl[k]).map(([t,n])=>t+(n>1?' x'+n:'')).join(', ');
+    if(c) L.push('niv '+k+' · '+c);
   });
-  L.push('','--- Journal ---');
-  S.events.forEach(e=>L.push('['+fmt(e.at-S.t0)+'] niv '+e.lvl+' · '+e.type+(e.note?' : '+e.note:'')));
+  L.push('','--- Journal (heure réelle) ---');
+  S.events.forEach(e=>L.push('['+hms(e.at)+'] niv '+e.lvl+' · '+e.type+(e.note?' : '+e.note:'')));
   return L.join('\n');
 }
 $('export').onclick=async()=>{
@@ -236,10 +209,9 @@ if(S.events.length){
   const r=$('restored'); r.classList.add('show');
   r.innerHTML='Session précédente restaurée : <b>'+S.events.length+' entrée'+(S.events.length>1?'s':'')+'</b>'
     +(S.who?' · '+S.who:'')
-    +(S.tEnd?' · terminée':'')+'. Continue, ou "Nouvelle session" pour repartir de zéro.';
+    +'. Continue, ou "Nouvelle session" pour repartir de zéro.';
   $('saveline').classList.add('saved');
   $('savetxt').textContent='restauré · '+S.events.length+' entrée'+(S.events.length>1?'s':'');
-  if(S.tEnd){ $('end').classList.add('done'); $('end').textContent='Session terminée'; }
 }
 render();
 </script>
