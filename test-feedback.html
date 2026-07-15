@@ -85,27 +85,11 @@
 
   <div class="sec">C. Difficulté, rythme, variété</div>
 
-  <div class="q" data-req="blocage">
-    <div class="qt"><span class="n"></span>Quand tu as été coincé, ce qui te manquait, c'était <span class="hint" style="font-weight:400">(plusieurs choix possibles)</span> <span class="star">*</span></div>
-    <label class="choice"><input type="checkbox" name="blocage" value="comprendre la demande du niveau">comprendre ce que le niveau me demandait</label>
-    <label class="choice"><input type="checkbox" name="blocage" value="voir comment atteindre le but">je voyais le but, mais pas comment y arriver</label>
-    <label class="choice"><input type="checkbox" name="blocage" value="erreurs de touche">je savais quoi faire, mais je me trompais de touche</label>
-    <label class="choice"><input type="checkbox" name="blocage" value="coincé nulle part" id="bloc-none">je n'ai été coincé nulle part</label>
-    <div class="cond" id="c-bloc">
-      <div class="qt" style="font-size:13px">À quel niveau ? <span class="star">*</span></div>
-      <input type="number" id="blocniveau" min="1" max="65">
-    </div>
-  </div>
-
   <div class="q" data-req="deja">
     <div class="qt"><span class="n"></span>T'est-il arrivé de te dire "ce niveau, je l'ai déjà fait" ? <span class="star">*</span></div>
     <label class="choice inline"><input type="radio" name="deja" value="jamais">jamais</label>
     <label class="choice inline"><input type="radio" name="deja" value="une ou deux fois">une ou deux fois</label>
     <label class="choice inline"><input type="radio" name="deja" value="régulièrement">régulièrement</label>
-    <div class="cond" id="c-deja">
-      <div class="qt" style="font-size:13px">Où, à peu près ?</div>
-      <input type="text" id="dejaou" placeholder="numéros ou tranche de niveaux">
-    </div>
   </div>
 
   <div class="sec">D. Notions</div>
@@ -231,15 +215,6 @@ for(let i=0;i<=10;i++){ const b=document.createElement('button'); b.type='button
   b.onclick=()=>{ puzzlefun=i; [...ps.children].forEach((x,k)=>x.classList.toggle('on',k===i)); };
   ps.appendChild(b); }
 
-/* conditionnelles */
-document.querySelectorAll('input[name="blocage"]').forEach(c=>c.addEventListener('change',()=>{
-  const none=$('bloc-none');
-  if(c===none && none.checked) document.querySelectorAll('input[name="blocage"]').forEach(x=>{ if(x!==none) x.checked=false; });
-  else if(c.checked && c!==none) none.checked=false;
-  $('c-bloc').classList.toggle('show', checks('blocage').some(v=>v!=='coincé nulle part')); }));
-document.querySelectorAll('input[name="deja"]').forEach(r=>r.addEventListener('change',()=>{
-  $('c-deja').classList.toggle('show', radio('deja')!=='jamais'); }));
-
 /* notions : conditionnelle "laquelle ?" si "oui" */
 document.querySelectorAll('input[name="tb"]').forEach(r=>r.addEventListener('change',()=>{
   $('c-tb').classList.toggle('show', radio('tb')==='oui'); }));
@@ -258,8 +233,6 @@ function validate(){
   need(!!radio('presence'),'presence');
   need(fun!==null,'fun');
   need(!!radio('retour'),'retour');
-  const bl=checks('blocage');
-  need(bl.length>0 && (bl.includes('coincé nulle part') || !!val('blocniveau')), 'blocage');
   need(val('verifx')!=='','verif');
   need(!!radio('deja'),'deja');
   need(!!radio('tb') && (radio('tb')!=='oui' || !!val('tbwhich')), 'teachback');
@@ -280,8 +253,7 @@ function buildSummary(){
     '=== RETOUR TEST GAMESHELL ('+new Date().toLocaleDateString('fr-FR')+') ===',
     'A· Testeur : test n° '+val('numtest')+' · pièce : '+dash(radio('presence')),
     'B· Fun : '+fun+'/10 · 20 nouveaux niveaux demain : '+dash(radio('retour')),
-    'C· Blocage : '+(checks('blocage').join(', ')||'-')+(val('blocniveau')?' (niveau '+val('blocniveau')+')':''),
-    '   Déjà-vu : '+dash(radio('deja'))+(val('dejaou')?' ('+val('dejaou')+')':''),
+    'C· Déjà-vu : '+dash(radio('deja'))+' (le "où" vient des logs : niveaux triviaux + ressentis par niveau)',
     'D· Réexplique tout ? '+dash(radio('tb'))+(val('tbwhich')?' → '+val('tbwhich'):''),
     '   Vérif "x = 2 puis x = x + 3" → réponse : '+dash(val('verifx'))+' (attendu 5)',
     'E· Âge : '+val('age')+' · h/sem JV (6 mois) : '+val('heures')+' · goût puzzle/casse-tête : '+puzzlefun+'/10',

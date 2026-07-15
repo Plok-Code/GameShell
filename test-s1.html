@@ -1633,8 +1633,9 @@ function handleWrite(ins, K){
 /* fin d'un step de tutoriel : renvoie true si un nouveau niveau a été chargé */
 function tutAdvance(){
   const st=tut.steps[tut.i]; tut.i++;
-  /* niveau tuto : jamais de questionnaire (la télémétrie suffit), on enchaîne — solo comme vocal */
-  if(st.advance){ awardStars(li,3); tut=null; loadLevel(li<LEVELS.length-1?li+1:0, true); return true; }
+  /* niveau tuto : jamais de questionnaire (la télémétrie suffit), on enchaîne — solo comme vocal.
+     On journalise quand même la victoire (sinon les tutos n'ont pas de level_win dans les données). */
+  if(st.advance){ awardStars(li,3); TELE.win(li+1, 3, gameovers); tut=null; loadLevel(li<LEVELS.length-1?li+1:0, true); return true; }
   if(tut.i>=tut.steps.length){ tut=null; lockUntil=performance.now()+350; }
   return false;
 }
@@ -1865,9 +1866,16 @@ if($('solorulesgo')){
      (un mot suffit) sauf pour "hésité à arrêter" et "gap" (obligatoires, « idk » accepté) */
 const SOLO_NEG={frustration:{lbl:'la frustration',req:false}, ennui:{lbl:"l'ennui",req:false},
                 hesite:{lbl:'pourquoi tu as failli arrêter',req:true}, gap:{lbl:'quelle a été la difficulté',req:true}};
+/* renvoie la RAISON du questionnaire complet (null = barre 1 clic seulement).
+   gameover/pause = galère détectée -> on posera aussi "qu'est-ce qui te manquait ?" à chaud
+   (la question posée en fin de session était irrécupérable de mémoire). */
 function soloFullTrigger(){
   const n=li+1;
-  return n%4===0 || (n>=28&&n<=32) || gameovers>0 || TELE.pausedThisLevel;
+  if(gameovers>0) return 'gameover';
+  if(TELE.pausedThisLevel) return 'pause';
+  if(n>=28&&n<=32) return 'zone';
+  if(n%4===0) return 'cadence';
+  return null;
 }
 /* barre 1 clic dans l'écran de victoire (remplace "Entrée" en solo) */
 function soloWinUI(){
@@ -1884,7 +1892,8 @@ function soloWinUI(){
 function soloQuick(choice){
   TELE.feedback({lvl:li+1, kind:'quick', quick:choice, ms:Date.now()-soloShownAt});
   const last=li===LEVELS.length-1, next=last?0:li+1;
-  if(soloFullTrigger()){ soloAsk(next, last); return; }
+  const trig=soloFullTrigger();
+  if(trig){ soloAsk(next, last, trig); return; }
   soloAfter(last, next);
 }
 function soloAfter(last, next){
@@ -1898,9 +1907,10 @@ function soloAfter(last, next){
   loadLevel(next, true);
 }
 function soloCard(){ return $('soloq').firstElementChild; }
-function soloAsk(nextIdx, last){
+function soloAsk(nextIdx, last, trigger){
   soloNext=nextIdx; soloLast=!!last;
-  soloAns={lvl:li+1, kind:'full'};
+  soloAns={lvl:li+1, kind:'full', trigger:trigger||'cadence'};
+  const struggle = trigger==='gameover' || trigger==='pause';   /* galère détectée -> question "coincé" à chaud */
   $('win').classList.remove('show');
   $('soloq').classList.add('show');
   soloShownAt=Date.now(); TELE.soloqShow('full');
@@ -1911,11 +1921,18 @@ function soloAsk(nextIdx, last){
       +(neg.req ? 'explique '+neg.lbl+' (« idk » si tu ne sais pas)' : 'un mot suffit (facultatif)')+'"></div>';
     return h;
   }
+  const stuckBlock = !struggle ? '' :
+    '<label class="sololbl">On dirait que tu as cherché un moment. Qu\'est-ce qui te manquait ?</label>'
+    +'<label class="solochk"><input type="radio" name="solostuck" value="comprendre la demande"> comprendre ce que le niveau me demandait</label>'
+    +'<label class="solochk"><input type="radio" name="solostuck" value="voir comment y arriver"> je voyais le but, mais pas comment y arriver</label>'
+    +'<label class="solochk"><input type="radio" name="solostuck" value="erreurs de touche"> je savais quoi faire, mais je me trompais de touche</label>'
+    +'<label class="solochk"><input type="radio" name="solostuck" value="pas coincé"> je n\'étais pas vraiment coincé(e)</label>';
   const c=soloCard();
   c.innerHTML='<h2>Niveau '+(li+1)+' / '+LEVELS.length+'</h2><p>Quelques questions sur ce niveau (coche ce qui s\'applique)</p>'
     +chk('amuse','Je me suis amusé(e)')+chk('neutre','Je suis resté(e) neutre')
     +chk('frustration','J\'ai ressenti de la frustration')+chk('ennui','Je me suis ennuyé(e)')
     +chk('hesite','J\'ai hésité à arrêter (mais je continue)')+chk('gap','J\'ai senti un trop gros gap de difficulté')
+    +stuckBlock
     +'<label class="sololbl">Remarque libre (facultatif)</label><textarea id="soloremark" rows="2"></textarea>'
     +'<p id="soloqmsg"></p><div><button id="soloqval" class="aidbtn">Valider ▸</button></div>';
   c.querySelectorAll('input[type=checkbox]').forEach(x=>x.addEventListener('change',()=>{
@@ -1932,6 +1949,10 @@ function soloVal(){
   c.querySelectorAll('.soloexp').forEach(t=>{ const k=t.dataset.k, v=t.value.trim();
     if(res[k]){ if(v) exps[k]=v; else if(SOLO_NEG[k].req && !missing) missing=k; } });
   if(missing){ $('soloqmsg').textContent='Explique '+SOLO_NEG[missing].lbl+' (« idk » accepté).'; return; }
+  /* question "coincé" (affichée seulement quand la galère a été détectée) : obligatoire */
+  const stuckEl=c.querySelector('input[name="solostuck"]:checked');
+  if(c.querySelector('input[name="solostuck"]') && !stuckEl){ $('soloqmsg').textContent='Réponds aussi à « qu\'est-ce qui te manquait ? ».'; return; }
+  if(stuckEl) soloAns.stuck=stuckEl.value;
   soloAns.ressenti=res; soloAns.remark=remark; soloAns.explanations=exps; soloAns.ms=Date.now()-soloShownAt;
   TELE.feedback(soloAns);
   $('soloq').classList.remove('show');
