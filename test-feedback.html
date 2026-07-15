@@ -103,19 +103,13 @@
   <div class="sec">D. Notions</div>
 
   <div class="q" data-req="teachback">
-    <div class="qt"><span class="n"></span>Coche les notions que tu serais incapable de réexpliquer à quelqu'un d'autre <span class="star">*</span></div>
-    <label class="choice"><input type="checkbox" name="tb" value="les variables (x = 2)">les variables (x = 2)</label>
-    <label class="choice"><input type="checkbox" name="tb" value="lire()">lire()</label>
-    <label class="choice"><input type="checkbox" name="tb" value="ecrire() : taper la valeur">ecrire() : taper la valeur</label>
-    <label class="choice"><input type="checkbox" name="tb" value="les calculs (x = x + 1, +=, -=)">les calculs (x = x + 1, +=, -=)</label>
-    <label class="choice"><input type="checkbox" name="tb" value="les variables entre elles (y = x, z = x + y)">les variables entre elles (y = x, z = x + y)</label>
-    <label class="choice"><input type="checkbox" name="tb" value="multiplier et diviser (*, /)">multiplier et diviser (*, /)</label>
-    <label class="choice"><input type="checkbox" name="tb" value="les mots : lire et taper lettre à lettre">les mots : lire et taper lettre à lettre</label>
-    <label class="choice"><input type="checkbox" name="tb" value="coller des mots, et l'ordre (z = y + x)">coller des mots, et l'ordre (z = y + x)</label>
-    <label class="choice"><input type="checkbox" name="tb" value="les pistes : la case dicte le saut">les pistes : la case dicte le saut</label>
-    <label class="choice"><input type="checkbox" name="tb" value="la zone qui boucle (bords en pointillés)">la zone qui boucle (bords en pointillés)</label>
-    <label class="choice"><input type="checkbox" name="tb" value="les calculs en argument (avancer(x + 1))">les calculs en argument (avancer(x + 1))</label>
-    <label class="choice"><input type="checkbox" name="tb" value="je peux toutes les réexpliquer" id="tb-all">je peux toutes les réexpliquer</label>
+    <div class="qt"><span class="n"></span>Parmi les notions que tu as rencontrées, y en a-t-il une que tu ne saurais pas réexpliquer à quelqu'un ? <span class="star">*</span></div>
+    <label class="choice inline"><input type="radio" name="tb" value="non, je peux tout réexpliquer">Non, je peux tout réexpliquer</label>
+    <label class="choice inline"><input type="radio" name="tb" value="oui">Oui</label>
+    <div class="cond" id="c-tb">
+      <div class="qt" style="font-size:13px">Laquelle / lesquelles ? <span class="star">*</span></div>
+      <input type="text" id="tbwhich" placeholder="ex. les calculs en argument, avancer(x + 1)">
+    </div>
   </div>
 
   <div class="sec">E. Toi (30 secondes, pour savoir à qui le jeu parle)</div>
@@ -232,12 +226,9 @@ document.querySelectorAll('input[name="blocage"]').forEach(c=>c.addEventListener
 document.querySelectorAll('input[name="deja"]').forEach(r=>r.addEventListener('change',()=>{
   $('c-deja').classList.toggle('show', radio('deja')!=='jamais'); }));
 
-/* notions : "toutes" est exclusif */
-document.querySelectorAll('input[name="tb"]').forEach(c=>c.addEventListener('change',()=>{
-  const all=$('tb-all');
-  if(c===all && all.checked) document.querySelectorAll('input[name="tb"]').forEach(x=>{ if(x!==all) x.checked=false; });
-  else if(c.checked && c!==all) all.checked=false;
-}));
+/* notions : conditionnelle "laquelle ?" si "oui" */
+document.querySelectorAll('input[name="tb"]').forEach(r=>r.addEventListener('change',()=>{
+  $('c-tb').classList.toggle('show', radio('tb')==='oui'); }));
 
 /* motivations : exactement 3 (verrou à 3 max) */
 document.querySelectorAll('input[name="motiv"]').forEach(c=>c.addEventListener('change',()=>{
@@ -255,7 +246,7 @@ function validate(){
   const bl=checks('blocage');
   need(bl.length>0 && (bl.includes('coincé nulle part') || !!val('blocniveau')), 'blocage');
   need(!!radio('deja'),'deja');
-  need(checks('tb').length>0,'teachback');
+  need(!!radio('tb') && (radio('tb')!=='oui' || !!val('tbwhich')), 'teachback');
   need(!!val('age'),'age');
   need(val('heures')!=='','heures');
   need(puzzlefun!==null,'puzzlefun');
@@ -275,7 +266,7 @@ function buildSummary(){
     'B· Fun : '+fun+'/10 · 20 nouveaux niveaux demain : '+dash(radio('retour')),
     'C· Blocage : '+(checks('blocage').join(', ')||'-')+(val('blocniveau')?' (niveau '+val('blocniveau')+')':''),
     '   Déjà-vu : '+dash(radio('deja'))+(val('dejaou')?' ('+val('dejaou')+')':''),
-    'D· Incapable de réexpliquer : '+(checks('tb').join(', ')||'-'),
+    'D· Réexplique tout ? '+dash(radio('tb'))+(val('tbwhich')?' → '+val('tbwhich'):''),
     'E· Âge : '+val('age')+' · h/sem JV (6 mois) : '+val('heures')+' · goût puzzle/casse-tête : '+puzzlefun+'/10',
     '   Motivations (top 3) : '+checks('motiv').join(', '),
     '   Code : '+dash(radio('expcode'))+' · 10 h de cours offertes : '+dash(radio('envie')),
