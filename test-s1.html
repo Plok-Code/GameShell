@@ -20,6 +20,11 @@
   #errs b{font-weight:600;color:var(--dim);margin-right:3px}
   #errs.bad{color:#c98a97}
   #errs.bad b{color:var(--err)}
+  /* timer du niveau : compte à rebours, game over à zéro */
+  #timer{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  #timer .tl{color:var(--faint);text-transform:uppercase;font-size:10px;letter-spacing:.08em}
+  #timer.low{color:var(--err)}
+  #timer.low .tl{color:var(--err)}
   #errs .dot{width:10px;height:10px;border-radius:50%;background:#151827;border:1px solid #2a2d44}
   #errs .dot.on{background:var(--err);border-color:var(--err);box-shadow:0 0 10px #ff547088}
   #errs.flash{animation:errflash .5s}
@@ -149,7 +154,7 @@
 
 <div id="app">
   <header><h1>GameShell · Test S1</h1></header>
-  <div id="hud"><span id="lvlno"></span><span id="errs"></span></div>
+  <div id="hud"><span id="lvlno"></span><span id="timer"></span><span id="errs"></span></div>
   <div class="stage">
     <div class="box" id="gridbox"><div id="grid"></div><div id="varsp"></div></div>
     <div class="box" id="progbox"><pre id="code"></pre></div>
@@ -1187,6 +1192,29 @@ function gameDone(){ return stars[LEVELS.length-1] != null; }   /* jeu terminé 
 /* rendu des étoiles en SVG (monochrome maîtrisé, jamais un emoji) : n pleines sur 3 */
 function starSVG(on){ return '<svg viewBox="0 0 24 24" class="star'+(on?' on':'')+'"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'; }
 function starRow(n){ let h='<span class="stars">'; for(let i=0;i<3;i++) h+=starSVG(i<n); return h+'</span>'; }
+/* timer par niveau (non-tuto) : temps = max(2 min, 30 s par ligne-geste). Game over si le temps tombe à 0. */
+let timeLeft=0;
+function levelTime(){ if(!level) return 0; const n=level.instrs.filter(i=>i.type==='call'||i.type==='write').length; return Math.max(120, 30*n); }
+function renderTimer(){
+  const el=$('timer'); if(!el) return;
+  if(tut){ el.style.display='none'; return; }
+  el.style.display='';
+  const m=Math.floor(timeLeft/60), s=timeLeft%60;
+  el.innerHTML='<span class="tl">temps</span>'+m+':'+(s<10?'0':'')+s;
+  el.classList.toggle('low', timeLeft<=30);
+}
+/* décrémenté chaque seconde, sauf en tuto / dialogue / écran (game over, victoire, menu, pense-bête) */
+function timerTick(){
+  if(!level || tut || dlgPagesActive()) return;
+  if($('win').classList.contains('show')||$('lose').classList.contains('show')
+     ||$('menu').classList.contains('show')||$('pb').classList.contains('show')) return;
+  if(timeLeft>0){ timeLeft--; renderTimer(); if(timeLeft<=0) timeoutFail(); }
+}
+function timeoutFail(){
+  gameovers++; errors=0; resetState(); buildLoseScreen('Temps écoulé sur ce niveau.'); render();
+  loseAt=performance.now();
+  $('lose').classList.add('show');
+}
 /* anti-zap : horodatage d'ouverture de l'écran game over et de la page de dialogue courante */
 let loseAt=0, dlgShownAt=0;
 const KEYLBL={ArrowRight:'→',ArrowLeft:'←',ArrowUp:'↑',ArrowDown:'↓',Enter:'Entrée',p:'P'};
@@ -1216,6 +1244,7 @@ function normCells(cells){ return cells.map(row=>row.map(c=>{
 })); }
 
 function loadLevel(n, seq){
+  ['lose','win','menu','pb'].forEach(id=>$(id).classList.remove('show'));   /* démarre sur un écran propre (ex : saut dev par-dessus un game over) */
   const prevBloc = level ? level.def.bloc : null;
   li=n; errors=0; gameovers=0; aidVars=false; aidLines=false; aidGuide=false;
   const L=LEVELS[n];
@@ -1230,6 +1259,7 @@ function loadLevel(n, seq){
   if(L.dialogue) pages.push(...L.dialogue);
   level.dlgPages = pages;
   dlgIdx = pages.length ? 0 : -1;
+  timeLeft = tut ? 0 : levelTime();
   resetState(); renderAll();
   if(!pages.length && !tut) flushNoteChips();
 }
@@ -1301,7 +1331,7 @@ function hlPy(t){
 }
 function renderAll(){
   $('lvlno').textContent='niveau '+(li+1)+' / '+LEVELS.length;
-  renderDlg(); render(); updateHints();
+  renderDlg(); render(); updateHints(); renderTimer();
 }
 /* hints du footer : P dès son introduction, m (rejeu) une fois le jeu terminé */
 function updateHints(){
@@ -1433,9 +1463,9 @@ function loseAidLabel(){
   if(gameovers>=2 && loseVarsHidden()) return 'afficher les variables';
   return 'surligner la ligne à exécuter';
 }
-function buildLoseScreen(){
+function buildLoseScreen(reason){
   const box=$('loseaids'); box.innerHTML='';
-  $('losep').innerHTML='Tu as fait 3 erreurs sur ce niveau.';
+  $('losep').innerHTML = reason || 'Tu as fait 3 erreurs sur ce niveau.';
   const b1=document.createElement('button'); b1.className='aidbtn';
   b1.innerHTML='tape la touche <b>1</b> pour '+loseAidLabel(); b1.onclick=loseHelp; box.appendChild(b1);
   const b2=document.createElement('button'); b2.className='aidbtn';
@@ -1449,7 +1479,7 @@ function loseHelp(){
   closeLose();
 }
 function loseRetry(){ closeLose(); }
-function closeLose(){ $('lose').classList.remove('show'); lockUntil=performance.now()+350; render(); }
+function closeLose(){ $('lose').classList.remove('show'); lockUntil=performance.now()+350; timeLeft = tut ? 0 : levelTime(); render(); }
 function checkWin(){
   if(tut) return;   /* niveau scripté : c'est le tutoriel qui gère la fin (dialogue puis niveau suivant) */
   if(level.def.win(G)){
@@ -1652,4 +1682,7 @@ function openPB(){
 }
 
 loadLevel(0);
+/* horloge du timer : 1 tick/seconde. unref() en environnement Node (harnais) pour ne pas retenir le process. */
+const _timerInt = setInterval(timerTick, 1000);
+if(_timerInt && typeof _timerInt.unref==='function') _timerInt.unref();
 </script>
