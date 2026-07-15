@@ -17,7 +17,7 @@
   label{font-size:11px;color:var(--dim);display:block}
   input[type=text]{background:#0e1020;border:1px solid #2a2d44;border-radius:8px;color:#eaf0ff;
     font-family:inherit;font-size:13px;padding:7px 10px;margin-top:3px;width:100%}
-  .fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .fields{display:grid;grid-template-columns:minmax(180px,280px);gap:10px}
   .bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   button{background:#0e1020;border:1px solid #2a2d44;border-radius:8px;color:var(--txt);
     font-family:inherit;font-size:13px;padding:9px 13px;cursor:pointer}
@@ -67,9 +67,7 @@
   <div id="restored"></div>
 
   <div class="q fields">
-    <span><label>Testeur</label><input type="text" id="who"></span>
-    <span><label>N° de test</label><input type="text" id="num"></span>
-    <span><label>Version</label><input type="text" id="ver"></span>
+    <span><label>Code testeur</label><input type="text" id="who" placeholder="ex. S04-P012-V"></span>
   </div>
 
   <div class="q bar">
@@ -112,7 +110,7 @@
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-let S={t0:null, tEnd:null, lvl:1, events:[], who:'', num:'', ver:''};
+let S={t0:null, tEnd:null, lvl:1, events:[], who:''};
 
 /* ---- persistance locale, avec retour visible ---- */
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -155,7 +153,7 @@ function render(){
   });
   tb.parentElement.scrollTop=tb.parentElement.scrollHeight;
   $('lvl').value=S.lvl;
-  $('who').value=S.who; $('num').value=S.num; $('ver').value=S.ver;
+  $('who').value=S.who;
 }
 function esc(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
@@ -183,8 +181,8 @@ $('note').addEventListener('keydown',e=>{
   if(e.key==='Enter' && $('note').value.trim()){ addEv('note', $('note').value.trim()); $('note').value=''; }
 });
 $('undo').onclick=()=>{ S.events.pop(); save(); render(); };
-['who','num','ver'].forEach(id=>$(id).addEventListener('input',()=>{ S[id]=$(id).value; save(); }));
-$('reset').onclick=()=>{ if(confirm('Effacer toute la session ?')){ S={t0:null,tEnd:null,lvl:1,events:[],who:'',num:'',ver:''}; $('end').classList.remove('done'); $('end').textContent='Terminer'; save(); render(); $('out').value=''; } };
+['who'].forEach(id=>$(id).addEventListener('input',()=>{ S[id]=$(id).value; save(); }));
+$('reset').onclick=()=>{ if(confirm('Effacer toute la session ?')){ S={t0:null,tEnd:null,lvl:1,events:[],who:''}; $('end').classList.remove('done'); $('end').textContent='Terminer'; save(); render(); $('out').value=''; } };
 
 /* ---- construction du rapport (partagée par copier + télécharger) ---- */
 function buildReport(){
@@ -203,7 +201,7 @@ function buildReport(){
   if(prev) perLvl[prev.lvl].temps += Math.max(0, endT-prev.at);
   const L=[
     '=== OBSERVATION GAMESHELL ('+new Date().toLocaleDateString('fr-FR')+') ===',
-    'Testeur : '+(S.who||'-')+' · test n° '+(S.num||'-')+' · version '+(S.ver||'-'),
+    'Code testeur : '+(S.who||'-'),
     'Durée totale : '+(S.t0?fmt(endT-S.t0):'-')+(S.tEnd?'':' (session en cours)'),
     '',
     '--- Par niveau ---'
@@ -224,7 +222,7 @@ $('export').onclick=async()=>{
 };
 $('download').onclick=()=>{
   const t=buildReport(); $('out').value=t;
-  const name='observation-'+(S.num||'gameshell').replace(/[^\w-]/g,'')+'.txt';
+  const name='observation-'+(S.who||'gameshell').replace(/[^\w-]/g,'')+'.txt';
   const blob=new Blob([t],{type:'text/plain;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click();
@@ -237,7 +235,7 @@ load();
 if(S.events.length){
   const r=$('restored'); r.classList.add('show');
   r.innerHTML='Session précédente restaurée : <b>'+S.events.length+' entrée'+(S.events.length>1?'s':'')+'</b>'
-    +(S.who?' · '+S.who:'')+(S.num?' · '+S.num:'')
+    +(S.who?' · '+S.who:'')
     +(S.tEnd?' · terminée':'')+'. Continue, ou "Nouvelle session" pour repartir de zéro.';
   $('saveline').classList.add('saved');
   $('savetxt').textContent='restauré · '+S.events.length+' entrée'+(S.events.length>1?'s':'');
