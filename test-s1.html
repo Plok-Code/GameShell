@@ -94,6 +94,16 @@
     color:var(--txt);cursor:pointer;font-family:inherit}
   .mlvl:hover{border-color:var(--cyan);color:#eafcff}
   .mlvl.cur{border-color:var(--gold);color:var(--gold)}
+  /* menu de rejeu : numéro au-dessus, étoiles en dessous */
+  .mlvls.withstars{gap:7px}
+  .mlvls.withstars .mlvl{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:42px}
+  .stars{display:inline-flex;gap:1px;line-height:0}
+  .stars .star{width:12px;height:12px}
+  .stars .star path{fill:var(--faint)}
+  .stars .star.on path{fill:var(--gold)}
+  .stars.none{color:var(--faint);font-size:11px;line-height:1}
+  #winstars{margin-top:12px;display:flex;justify-content:center}
+  #winstars .star{width:24px;height:24px}
   #menuclose{margin-top:14px;color:var(--faint);font-size:11.5px}
   /* footer */
   footer{margin-top:16px;display:flex;gap:18px;font-size:11.5px;color:var(--faint)}
@@ -147,16 +157,17 @@
   <div id="coach"></div>
   <footer>
     <span id="kp" style="display:none"><span class="k">P</span> pense-bête</span>
+    <span id="km" style="display:none"><span class="k">m</span> rejouer</span>
   </footer>
 </div>
 
 <div id="dim"></div>
 <div id="dlg"><div class="dlgcard"><div id="dlgtext"></div><div id="dlgnext">Entrée ▸</div></div></div>
-<div class="ov" id="menu"><div class="card"><h2>Niveaux · accès libre (prototype)</h2><div id="menulist"></div><div id="menuclose">Ctrl+M ou Échap pour fermer · clique un niveau</div></div></div>
+<div class="ov" id="menu"><div class="card"><h2 id="menutitle">Niveaux · accès libre (prototype)</h2><div id="menulist"></div><div id="menuclose">Ctrl+M ou Échap pour fermer · clique un niveau</div></div></div>
 
 <div id="chips"></div>
 <div id="bubble"></div>
-<div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div class="go">Entrée ▸</div></div></div>
+<div class="ov" id="win"><div class="card"><h2 id="wt">Niveau réussi</h2><p id="wp"></p><div id="winstars"></div><div class="go">Entrée ▸</div></div></div>
 <div class="ov" id="lose"><div class="card"><h2 class="bad">GAME OVER</h2><p id="losep"></p><div id="loseaids"></div></div></div>
 <div class="ov" id="pb"><div class="card"><h2>Pense-bête</h2><div id="pblist"></div><div id="pbempty">Rien encore : les notions s'ajoutent au fil du jeu.</div><div id="pbclose">P ou Échap pour fermer</div></div></div>
 
@@ -1166,6 +1177,16 @@ let gameovers=0;    /* game overs sur le niveau en cours (débloque les aides pr
 /* aides opt-in choisies au game over, actives jusqu'à la fin du niveau : afficher les variables,
    surligner la ligne courante, coup de pouce (coach) pour les premiers niveaux */
 let aidVars=false, aidLines=false, aidGuide=false;
+/* étoiles par niveau (persistantes) : 0 game over = 3, 1 = 2, 2 ou plus = 1. On garde le meilleur score. */
+let stars = loadStars();
+function loadStars(){ try{ if(typeof localStorage==='undefined') return {}; return JSON.parse(localStorage.getItem('gs_stars')||'{}')||{}; }catch(e){ return {}; } }
+function saveStars(){ try{ if(typeof localStorage!=='undefined') localStorage.setItem('gs_stars', JSON.stringify(stars)); }catch(e){} }
+function starsFor(go){ return go>=2 ? 1 : go===1 ? 2 : 3; }
+function awardStars(idx, n){ if(stars[idx]==null || n>stars[idx]){ stars[idx]=n; saveStars(); } }
+function gameDone(){ return stars[LEVELS.length-1] != null; }   /* jeu terminé = dernier niveau accompli */
+/* rendu des étoiles en SVG (monochrome maîtrisé, jamais un emoji) : n pleines sur 3 */
+function starSVG(on){ return '<svg viewBox="0 0 24 24" class="star'+(on?' on':'')+'"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'; }
+function starRow(n){ let h='<span class="stars">'; for(let i=0;i<3;i++) h+=starSVG(i<n); return h+'</span>'; }
 /* anti-zap : horodatage d'ouverture de l'écran game over et de la page de dialogue courante */
 let loseAt=0, dlgShownAt=0;
 const KEYLBL={ArrowRight:'→',ArrowLeft:'←',ArrowUp:'↑',ArrowDown:'↓',Enter:'Entrée',p:'P'};
@@ -1282,9 +1303,10 @@ function renderAll(){
   $('lvlno').textContent='niveau '+(li+1)+' / '+LEVELS.length;
   renderDlg(); render(); updateHints();
 }
-/* hints du footer : P dès son introduction */
+/* hints du footer : P dès son introduction, m (rejeu) une fois le jeu terminé */
 function updateHints(){
   $('kp').style.display = li>=PB_INTRO ? '' : 'none';
+  $('km').style.display = gameDone() ? '' : 'none';
 }
 function renderDlg(){
   const pages=level.dlgPages||[], box=$('dlg'), dim=$('dim');
@@ -1430,10 +1452,16 @@ function loseRetry(){ closeLose(); }
 function closeLose(){ $('lose').classList.remove('show'); lockUntil=performance.now()+350; render(); }
 function checkWin(){
   if(tut) return;   /* niveau scripté : c'est le tutoriel qui gère la fin (dialogue puis niveau suivant) */
-  if(level.def.win(G)){ $('wt').textContent = li===LEVELS.length-1 ? 'Prototype terminé' : 'Niveau réussi';
-    $('wp').textContent = li===LEVELS.length-1 ? 'Trajets, variables, calculs, mots, le socle est maîtrisé. Prochaine étape : les conditions.'
-                                               : '';
-    $('win').classList.add('show'); }
+  if(level.def.win(G)){
+    awardStars(li, starsFor(gameovers));           /* 0 game over = 3 étoiles, 1 = 2, 2+ = 1 (meilleur conservé) */
+    const last = li===LEVELS.length-1;
+    $('wt').textContent = last ? 'Bravo' : 'Niveau réussi';
+    $('wp').innerHTML = last
+      ? 'Félicitations, tu es venu à bout de ce gameplay ! Tu peux maintenant rejouer chaque niveau pour tenter de faire le score max à chacun. Pour y accéder, tape la touche <b>m</b>.'
+      : '';
+    $('winstars').innerHTML = starRow(stars[li]);
+    $('win').classList.add('show');
+  }
   else fail('programme terminé, mais l’objectif est manqué, relis le but.');
 }
 
@@ -1477,7 +1505,7 @@ function handleWrite(ins, K){
 /* fin d'un step de tutoriel : renvoie true si un nouveau niveau a été chargé */
 function tutAdvance(){
   const st=tut.steps[tut.i]; tut.i++;
-  if(st.advance){ tut=null; loadLevel(li<LEVELS.length-1?li+1:0, true); return true; }
+  if(st.advance){ awardStars(li,3); tut=null; loadLevel(li<LEVELS.length-1?li+1:0, true); return true; }
   if(tut.i>=tut.steps.length){ tut=null; lockUntil=performance.now()+350; }
   return false;
 }
@@ -1488,7 +1516,15 @@ document.addEventListener('keydown',e=>{
   /* Ctrl+M = menu des niveaux (dev), n'importe quand — traité AVANT le filtre des modificateurs */
   if((K==='m'||K==='M') && e.ctrlKey){
     e.preventDefault();
-    if($('menu').classList.contains('show')) $('menu').classList.remove('show'); else openMenu();
+    if($('menu').classList.contains('show')) $('menu').classList.remove('show'); else openMenu(false);
+    return;
+  }
+  /* m (sans Ctrl) = menu de rejeu avec étoiles, débloqué une fois le jeu terminé (distinct du Ctrl+M dev).
+     Ignoré si le jeu attend justement la lettre m (écriture d'un mot). */
+  if((K==='m'||K==='M') && !e.ctrlKey && !e.repeat && gameDone() && expectedKeyNow()!=='m'){
+    e.preventDefault();
+    if($('menu').classList.contains('show')) $('menu').classList.remove('show');
+    else { $('win').classList.remove('show'); openMenu(true); }
     return;
   }
   /* touche MAINTENUE (auto-repeat) : tolérée uniquement au MILIEU d'une instruction multi-pressions
@@ -1588,11 +1624,19 @@ function handleCall(ins, K){
 }
 
 /* menu des niveaux, accès libre (prototype) */
-function openMenu(){
+/* showStars : menu de rejeu (touche m, jeu terminé) qui affiche les étoiles ; sinon menu dev (Ctrl+M) */
+function openMenu(showStars){
   const list=$('menulist'); list.innerHTML='';
-  const w=document.createElement('div'); w.className='mlvls'; list.appendChild(w);
+  $('menutitle').textContent = showStars ? 'Niveaux · rejoue pour le score max' : 'Niveaux · accès libre (prototype)';
+  $('menuclose').textContent = showStars ? 'm ou Échap pour fermer · clique un niveau pour le rejouer'
+                                         : 'Ctrl+M ou Échap pour fermer · clique un niveau';
+  const w=document.createElement('div'); w.className='mlvls'+(showStars?' withstars':''); list.appendChild(w);
   LEVELS.forEach((L,i)=>{
-    const b=document.createElement('button'); b.className='mlvl'+(i===li?' cur':''); b.textContent=(i+1);
+    const b=document.createElement('button'); b.className='mlvl'+(i===li?' cur':'');
+    if(showStars){
+      const s=stars[i];
+      b.innerHTML='<span class="mnum">'+(i+1)+'</span>'+(s!=null ? starRow(s) : '<span class="stars none">·</span>');
+    } else b.textContent=(i+1);
     b.onclick=()=>{ $('menu').classList.remove('show'); loadLevel(i); };
     w.appendChild(b);
   });
