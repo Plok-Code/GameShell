@@ -1177,7 +1177,8 @@ const TELE = (function(){
   const LOG_KEYS   = true;           /* flux de touches brut : le plus riche, mais beaucoup de lignes */
   const FLUSH_MS   = 10000;
   const TRIVIAL_MS = 12000;          /* réussite < 12 s + 0 erreur + 0 game over = "trivial" (flag auto) */
-  let on=false, sid='', code='', startWall=0, buf=[], summarySent=false, stats=null, lvlStart=0, curLvl=1;
+  const PAUSE_MS   = 8000;           /* >= 8 s sans action = pause/hésitation : événement auto avec sa durée */
+  let on=false, sid='', code='', startWall=0, buf=[], summarySent=false, stats=null, lvlStart=0, curLvl=1, lastKeyAt=0;
   const iso = ()=>new Date().toISOString();
   const dev = ()=>({ua:navigator.userAgent, sw:screen.width, sh:screen.height, vw:innerWidth, vh:innerHeight,
                     dpr:devicePixelRatio, lang:navigator.language,
@@ -1218,8 +1219,12 @@ const TELE = (function(){
       addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flush(true); });
       return true;
     },
-    levelStart(l){ curLvl=l; lvlStart=Date.now(); if(on){ pl(l); push('level_start',{}); } },
-    key(k,expected,ctrl){ if(on && LOG_KEYS) push('key',{k, exp:expected||null, ctrl:!!ctrl}); },
+    levelStart(l){ curLvl=l; lvlStart=Date.now(); lastKeyAt=0; if(on){ pl(l); push('level_start',{}); } },
+    key(k,expected,ctrl){ if(!on) return;
+      const now=Date.now();
+      if(lastKeyAt && now-lastKeyAt>PAUSE_MS) push('pause',{ms:now-lastKeyAt});   /* hésitation = gros écart entre deux actions */
+      lastKeyAt=now;
+      if(LOG_KEYS) push('key',{k, exp:expected||null, ctrl:!!ctrl}); },
     error(reason){ if(!on)return; pl(curLvl).errors++; stats.totalErrors++; push('error',{reason}); },
     gameover(cause){ if(!on)return; const p=pl(curLvl); p.gameovers++; stats.totalGameovers++;
       if(cause==='timeout'){ p.timeouts++; stats.totalTimeouts++; } push('game_over',{cause}); },
