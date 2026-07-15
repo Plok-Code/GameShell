@@ -334,7 +334,7 @@ function compile(nodes){
 const V=(s)=>s.cells[s.r][s.c].v, COL=(s)=>s.cells[s.r][s.c].col||'gris';
 const setV=(s,v)=>{s.cells[s.r][s.c].v=v;};
 
-/* ================= LES 61 NIVEAUX, 6 BLOCS =================
+/* ================= LES 60 NIVEAUX, 6 BLOCS =================
    showValues : les valeurs des cases s'affichent (dès lire, bloc 2)
    showVars   : le PANNEAU DES BOÎTES est affiché (échafaudage, à chaque famille nouvelle, puis fading)
    target     : INERTE depuis S4 (le carré cible spoilait la destination et trompait avec le wrap :
@@ -707,15 +707,6 @@ const LEVELS = [
   win:s=>s.cells[3][1].v===2&&s.cells[3][0].v===4&&s.cells[0][0].v===4 },
 
 /* ============ BLOC 3, les boîtes entre elles (31-40) ============ */
-{ bloc:3, title:"Rappel : la réparation",
-  showValues:true,
-  cells:[[3,0]], start:[0,0],
-  prog:[ read('x'),
-         stm('x += 1', s=>{s.vars.x+=1;}),
-         wrv('x'),
-         fwd(1,'avancer(1)') ],
-  win:s=>s.cells[0][0].v===4&&s.c===1 },
-
 { bloc:3, title:"La copie", guide:true,
   dialogue:[
     {say:"Une variable peut se ranger <b>dans une autre</b> : <code>y = x</code> copie la valeur de x dans y (x garde sa valeur).", spot:['prog'], line:1},
@@ -1139,7 +1130,7 @@ const LEVELS = [
          wr('ecrire(z * 4)', s=>s.vars.z*4, s=>'z * 4 = '+(s.vars.z*4)+' → tape '+(s.vars.z*4)) ],
   win:s=>s.cells[3][3].v==='midi'&&s.cells[2][0].v===4&&s.cells[0][0].v===8&&s.cells[0][3].v===4 },
 
-/* ============ BLOC 6, LE BOSS (61) : un seul très long programme, tout le jeu ============ */
+/* ============ BLOC 6, LE BOSS (60) : un seul très long programme, tout le jeu ============ */
 { bloc:6, title:"La grande révision (LE BOSS)", wrap:true,
   showValues:true,
   cells:[[2,0,0,"so",0],[0,3,0,0,9],[8,0,0,6,4],[0,0,"",0,0]], start:[0,0],
@@ -1171,7 +1162,7 @@ const LEVELS = [
 /* ================= moteur ================= */
 const $=id=>document.getElementById(id);
 let li=0, level=null, G=null, errors=0, dlgIdx=-1, lockUntil=0;
-/* les blocs restent un outil interne de design : le testeur ne voit que "niveau X / 61" */
+/* les blocs restent un outil interne de design : le testeur ne voit que "niveau X / 60" */
 
 /* ---- tutoriels scriptés (pas-à-pas) ----
    step = {say?, key?, do?, pbText?, spot?:['grid','prog'], line?:n|[n], probe?, advance?}
