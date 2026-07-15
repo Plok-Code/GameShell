@@ -1173,7 +1173,7 @@ function starRow(n){ let h='<span class="stars">'; for(let i=0;i<3;i++) h+=starS
 const VERSION = 'proto01-v4';
 const TELE = (function(){
   const WEBHOOK    = 'https://script.google.com/macros/s/AKfycbyZyqdosEV2fGqJ8gOwrOozd1XVc8aHW_ay0Y9BMxNltlNpxWjiEDF10wekA1UQrtiX/exec';
-  const ADMIN_CODE = 'PLOK-ADMIN';   /* ce code = aucun enregistrement (à toi ; insensible à la casse) */
+  const ADMIN_HASH = 3353544826;     /* empreinte du code admin : le code en clair n'est PAS dans la source */
   const LOG_KEYS   = true;           /* flux de touches brut : le plus riche, mais beaucoup de lignes */
   const FLUSH_MS   = 10000;
   const TRIVIAL_MS = 12000;          /* réussite < 12 s + 0 erreur + 0 game over = "trivial" (flag auto) */
@@ -1182,7 +1182,15 @@ const TELE = (function(){
   const dev = ()=>({ua:navigator.userAgent, sw:screen.width, sh:screen.height, vw:innerWidth, vh:innerHeight,
                     dpr:devicePixelRatio, lang:navigator.language,
                     tz:(Intl.DateTimeFormat().resolvedOptions().timeZone||''), touch:('ontouchstart' in window)});
-  function isAdmin(c){ return String(c).trim().toUpperCase()===ADMIN_CODE.toUpperCase(); }
+  function ah(s){ let h=5381; s='gs§'+s; for(let i=0;i<s.length;i++) h=(((h<<5)+h)^s.charCodeAt(i))>>>0; return h; }
+  function isAdmin(c){ return ah(String(c).trim())===ADMIN_HASH; }
+  /* code testeur "S04-P001-V" : V = partagé/observé, S = solo. On isole session/participant/mode. */
+  function parseCode(c){
+    const up=String(c).trim();
+    const mode=((up.match(/-([VS])$/i)||[])[1]||'').toUpperCase();
+    const parts=up.replace(/-[VS]$/i,'').split('-');
+    return {session:parts[0]||'', participant:parts[1]||'', mode};
+  }
   function pl(l){ return stats.perLevel[l] || (stats.perLevel[l]={time:0,errors:0,gameovers:0,timeouts:0,stars:null,trivial:false}); }
   function push(type,d){ if(!on) return; buf.push({t:Date.now(), lvl:curLvl, type, d:d||{}}); if(buf.length>=250) flush(false); }
   function flush(final){
@@ -1200,7 +1208,9 @@ const TELE = (function(){
       on=true;
       sid = Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
       startWall = Date.now();
-      stats = {code, version:VERSION, startedAt:iso(), device:dev(), lastLevel:1, completed:false,
+      const pc=parseCode(code);
+      stats = {code, session:pc.session, participant:pc.participant, mode:pc.mode,
+               version:VERSION, startedAt:iso(), device:dev(), lastLevel:1, completed:false,
                totalErrors:0, totalGameovers:0, totalTimeouts:0, perLevel:{}};
       push('session_start',{device:stats.device});
       setInterval(()=>flush(false), FLUSH_MS);
