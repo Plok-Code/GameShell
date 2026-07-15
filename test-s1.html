@@ -277,7 +277,7 @@ function compile(nodes){
 const V=(s)=>s.cells[s.r][s.c].v, COL=(s)=>s.cells[s.r][s.c].col||'gris';
 const setV=(s,v)=>{s.cells[s.r][s.c].v=v;};
 
-/* ================= LES 65 NIVEAUX, 6 BLOCS =================
+/* ================= LES 62 NIVEAUX, 6 BLOCS =================
    showValues : les valeurs des cases s'affichent (dès lire, bloc 2)
    showVars   : le PANNEAU DES BOÎTES est affiché (échafaudage, à chaque famille nouvelle, puis fading)
    target     : INERTE depuis S4 (le carré cible spoilait la destination et trompait avec le wrap :
@@ -395,18 +395,15 @@ const LEVELS = [
          bwd(3,'reculer(x)', s=>'x contient 3 → 3 pressions de ←') ],
   win:s=>s.r===0&&s.c===0 },
 
-{ bloc:1, title:"La mémoire longue", wrap:true, notes:['boucle'],
-  dlgSpot:['grid'],
-  dialogue:["Cette zone <b>boucle</b> (bords en pointillés) : sortir en bas fait revenir en haut. <code>descendre(18)</code> sur 3 lignes = six tours complets."],
+{ bloc:1, title:"Le détour",
+  dialogue:["Trois nombres sont déjà en mémoire : <code>x</code>, <code>y</code>, <code>z</code>. Chaque déplacement lit l'un d'eux pour savoir combien de pas faire, dans les quatre directions."],
   cells:[[0,0,0,0],[0,0,0,0],[0,0,0,0]], start:[0,0], target:[1,1],
   prog:[ set('x',1), set('y',3), set('z',2),
          fwd(3,'avancer(y)', s=>'y contient 3 → 3 pressions de →'),
          bwd(1),
          dwn(2,'descendre(z)', s=>'z contient 2 → 2 pressions de ↓'),
          bwd(1,'reculer(x)', s=>'x contient 1 → 1 pression de ←'),
-         dwn(18),
-         set('z',1),
-         up(1,'monter(z)', s=>'z contient 1 → 1 pression de ↑') ],
+         up(1,'monter(x)', s=>'x contient 1 → 1 pression de ↑') ],
   win:s=>s.r===1&&s.c===1 },
 
 { bloc:1, title:"Le messager (BOSS du bloc 1)",
@@ -947,18 +944,9 @@ const LEVELS = [
          wrv('w') ],
   win:s=>s.cells[2][1].v==='miel'&&s.cells[0][4].v===9&&s.cells[3][0].v===4 },
 
-/* ============ BLOC 5, la salle des machines (52-64) : fusion des anciens blocs 5+6,
-   deux modificateurs neufs SANS vocabulaire nouveau : zones qui BOUCLENT (wrap, bords en
-   pointillés) et CALCULS EN ARGUMENT (avancer(x + 1), ecrire(x + y), avancer(lire())) ============ */
-{ bloc:5, title:"La zone qui boucle", wrap:true,
-  dlgSpot:['grid'],
-  dialogue:["Les bords en <b>pointillés</b> signalent une zone qui <b>boucle</b> : sortir d'un côté fait rentrer de l'autre.",
-    "<code>avancer(6)</code> sur une grille de 4 colonnes = un tour complet (4 pressions)… plus 2."],
-  showValues:true,
-  cells:[[0,0,0,0],[0,0,0,0]], start:[0,1], target:[1,2],
-  prog:[ fwd(6), dwn(3), bwd(1,'reculer(1)') ],
-  win:s=>s.r===1&&s.c===2 },
-
+/* ============ BLOC 5, la salle des machines : fusion des anciens blocs 5+6,
+   la nouveauté SANS vocabulaire nouveau = CALCULS EN ARGUMENT (avancer(x + 1), ecrire(x + y),
+   avancer(lire())). Le wrap ne subsiste, incident, que dans les boss (bords en pointillés). ============ */
 { bloc:5, title:"La piste", notes:['piste'],
   showValues:true,
   cells:[[2,9,3,9,9,0]], start:[0,0],
@@ -968,19 +956,6 @@ const LEVELS = [
          fwd(3,'avancer(y)', s=>'y contient 3 → 3 pressions de →'),
          wrv('x') ],
   win:s=>s.cells[0][5].v===2 },
-
-{ bloc:5, title:"La piste qui boucle", wrap:true,
-  showValues:true,
-  cells:[[3,0,8,4,0],[0,0,5,0,0]], start:[0,0],
-  prog:[ read('x'),
-         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
-         read('y'),
-         fwd(4,'avancer(y)', s=>'y contient 4 → 4 pressions de →'),
-         dwn(1,'descendre(1)'),
-         read('z'),
-         up(5,'monter(z)', s=>'z contient 5 → 5 pressions de ↑'),
-         wrv('y') ],
-  win:s=>s.cells[0][2].v===4 },
 
 { bloc:5, title:"L'échange",
   showValues:true,
@@ -1060,22 +1035,6 @@ const LEVELS = [
          wrv('z') ],
   win:s=>s.cells[1][2].v==='tapis' },
 
-{ bloc:5, title:"Le labyrinthe qui boucle", wrap:true,
-  showValues:true,
-  cells:[[3,0,0,2,0],[0,8,0,0,0],[0,4,6,7,9]], start:[0,0],
-  prog:[ read('x'),
-         fwd(3,'avancer(x)', s=>'x contient 3 → 3 pressions de →'),
-         read('x'),
-         dwn(2,'descendre(x)', s=>'x contient 2 → 2 pressions de ↓'),
-         read('x'),
-         bwd(7,'reculer(x)', s=>'x contient 7 → 7 pressions de ←'),
-         read('x'),
-         up(4,'monter(x)', s=>'x contient 4 → 4 pressions de ↑'),
-         read('x'),
-         fwd(8,'avancer(x)', s=>'x contient 8 → 8 pressions de →'),
-         wrn(9) ],
-  win:s=>s.cells[1][4].v===9 },
-
 { bloc:5, title:"Le compte à rebours",
   showValues:true,
   cells:[[4,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]], start:[0,0], target:[2,2],
@@ -1135,7 +1094,7 @@ const LEVELS = [
          wr('ecrire(z * 4)', s=>s.vars.z*4, s=>'z * 4 = '+(s.vars.z*4)+' → tape '+(s.vars.z*4)) ],
   win:s=>s.cells[3][3].v==='midi'&&s.cells[2][0].v===4&&s.cells[0][0].v===8&&s.cells[0][3].v===4 },
 
-/* ============ BLOC 6, LE BOSS (65) : un seul très long programme, tout le jeu ============ */
+/* ============ BLOC 6, LE BOSS (62) : un seul très long programme, tout le jeu ============ */
 { bloc:6, title:"La grande révision (LE BOSS)", wrap:true,
   showValues:true,
   cells:[[2,0,0,"so",0],[0,3,0,0,9],[8,0,0,6,4],[0,0,"",0,0]], start:[0,0],
@@ -1167,7 +1126,7 @@ const LEVELS = [
 /* ================= moteur ================= */
 const $=id=>document.getElementById(id);
 let li=0, level=null, G=null, errors=0, dlgIdx=-1, lockUntil=0;
-/* les blocs restent un outil interne de design : le testeur ne voit que "niveau X / 65" */
+/* les blocs restent un outil interne de design : le testeur ne voit que "niveau X / 62" */
 
 /* ---- tutoriels scriptés (pas-à-pas) ----
    step = {say?, key?, do?, pbText?, spot?:['grid','prog'], line?:n|[n], probe?, advance?}
