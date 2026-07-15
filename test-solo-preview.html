@@ -1290,6 +1290,9 @@ const TELE = (function(){
     aid(kind){ push('aid',{kind}); },
     pb(open){ push(open?'pb_open':'pb_close',{}); },
     menu(stars){ push('menu_open',{stars:!!stars}); },
+    /* sécurité : le code doit être dans l'onglet Codes du Sheet et ne pas avoir déjà servi */
+    checkCode(c){ return fetch(WEBHOOK+'?check='+encodeURIComponent(c)).then(r=>r.json()); },
+    mark(type,d){ push(type,d||{}); },               /* événement libre (ex. résultat de la vérification du code) */
     soloqShow(kind){ push('soloq_show',{kind}); },   /* apparition du questionnaire : delimite la "pause" dans les logs */
     feedback(d){ push('level_feedback', d||{}); if(on && d && d.ms) stats.totalFeedbackMs+=d.ms; },   /* réponses solo + cumul du temps passé à répondre */
     end(){ flush('final'); },                         /* fin de session manuelle : envoie tout (events + résumé définitif) */
@@ -1798,7 +1801,9 @@ loadLevel(0);
 /* ---- écran d'accueil : le jeu ne prend les touches qu'après la saisie du code ---- */
 function beginGame(){ started=true; if(TELE.on) TELE.levelStart(li+1); if(SOLO) $('endsession').classList.add('show'); renderAll(); }
 function codeMsg(t){ const el=$('codemsg'); if(el) el.textContent=t||''; }
+let codeChecking=false;
 function submitCode(){
+  if(codeChecking) return;
   const raw=$('codein').value.trim();
   if(!raw){ $('codein').focus(); return; }
   const admin=TELE.isAdmin(raw);
@@ -1810,22 +1815,35 @@ function submitCode(){
     if(!SOLO && c.slice(-1)!=='V'){ codeMsg('Ton code se termine par -S (session solo) mais tu es sur le lien vocal : vérifie le lien ou le code avec le créateur.'); return; }
   }
   codeMsg('');
-  testerCode=c; isAdminSession=admin;
-  /* reprise après F5/crash (< 6 h, même code) + purge si NOUVEAU testeur sur cette machine */
+  /* reprise après F5/crash (< 6 h, même code, même machine) : lecture seule ici, pas de vérif serveur */
   let resume=null;
+  try{
+    const r=JSON.parse(localStorage.getItem('gs_resume')||'null');
+    if(!admin && r && r.code===c && Date.now()-r.at<6*3600*1000 && r.lvl>0 && r.lvl<LEVELS.length) resume=r;
+  }catch(e){}
+  if(admin || resume){ finishCode(c, admin, resume, 'skip'); return; }
+  /* sécurité : le code doit être dans la liste (onglet Codes du Sheet) et ne pas avoir DÉJÀ servi */
+  codeChecking=true; codeMsg('Vérification du code…');
+  TELE.checkCode(c).then(v=>{
+    codeChecking=false;
+    if(v && v.allowed===false){ codeMsg('Ce code n\'est pas reconnu. Vérifie le message privé du créateur.'); return; }
+    if(v && v.used===true){ codeMsg('Ce code a déjà servi pour un test. Contacte le créateur pour en recevoir un nouveau.'); return; }
+    finishCode(c, false, null, 'ok');
+  }).catch(()=>{ codeChecking=false; finishCode(c, false, null, 'offline'); });   /* vérif injoignable : on laisse passer, journalisé */
+}
+function finishCode(c, admin, resume, check){
+  testerCode=c; isAdminSession=admin;
+  /* purge si NOUVEAU testeur sur cette machine (étoiles/reprise de l'ancien) — seulement pour un code accepté */
   try{
     const last=localStorage.getItem('gs_last_code');
     if(!admin && last && last!==c){
       localStorage.removeItem('gs_stars'); localStorage.removeItem('gs_resume'); localStorage.removeItem('gs_feedback_code');
       stars={};
     }
-    if(!admin){
-      localStorage.setItem('gs_last_code', c);
-      const r=JSON.parse(localStorage.getItem('gs_resume')||'null');
-      if(r && r.code===c && Date.now()-r.at<6*3600*1000 && r.lvl>0 && r.lvl<LEVELS.length) resume=r;
-    }
+    if(!admin) localStorage.setItem('gs_last_code', c);
   }catch(e){}
   TELE.start(c, resume?resume.sid:null);  /* démarre la télémétrie (sauf code admin) ; reprise = même session */
+  if(check!=='skip') TELE.mark('code_check',{result:check});
   if(admin) $('adminbadge').classList.add('show');
   $('codeov').classList.remove('show');
   if(resume){ started=true; if(SOLO) $('endsession').classList.add('show'); loadLevel(resume.lvl); bubble('Session reprise au niveau '+(resume.lvl+1)); return; }
