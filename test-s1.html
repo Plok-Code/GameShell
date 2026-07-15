@@ -334,7 +334,7 @@ function compile(nodes){
 const V=(s)=>s.cells[s.r][s.c].v, COL=(s)=>s.cells[s.r][s.c].col||'gris';
 const setV=(s,v)=>{s.cells[s.r][s.c].v=v;};
 
-/* ================= LES 60 NIVEAUX, 6 BLOCS =================
+/* ================= LES 61 NIVEAUX, 6 BLOCS =================
    showValues : les valeurs des cases s'affichent (dès lire, bloc 2)
    showVars   : le PANNEAU DES BOÎTES est affiché (échafaudage, à chaque famille nouvelle, puis fading)
    target     : INERTE depuis S4 (le carré cible spoilait la destination et trompait avec le wrap :
@@ -931,6 +931,21 @@ const LEVELS = [
          wrv('x') ],
   win:s=>s.cells[0][2].v==='lacs' },
 
+{ bloc:4, title:"L'écho",
+  /* pré-boss : court mais casse-tête (plus dur que "Mots et nombres") — x concaténé avec LUI-MÊME,
+     append après coup, déplacement qui exige le n mis à jour ; panneau éteint depuis le niv 44. */
+  showValues:true,
+  cells:[["bon",""],[3,""]], start:[0,0], target:[1,1],
+  prog:[ read('x'),
+         dwn(1,'descendre(1)'),
+         read('n'),
+         stm('x = x + x', s=>{s.vars.x=s.vars.x+s.vars.x;}),
+         stm('n = n - 2', s=>{s.vars.n=s.vars.n-2;}),
+         fwd(1,'avancer(n)', s=>'n contient 1 → 1 pression de →'),
+         stm('x = x + "s"', s=>{s.vars.x=s.vars.x+'s';}),
+         wrv('x') ],
+  win:s=>s.cells[1][1].v==='bonbons' },
+
 { bloc:4, title:"Le scribe (BOSS du bloc 4, 1/2)",
   showValues:true,
   cells:[["ar",0,3,0,0],[0,0,0,0,0],[0,0,"gile",0,0],[0,0,0,0,6]], start:[0,0],
@@ -1130,7 +1145,7 @@ const LEVELS = [
          wr('ecrire(z * 4)', s=>s.vars.z*4, s=>'z * 4 = '+(s.vars.z*4)+' → tape '+(s.vars.z*4)) ],
   win:s=>s.cells[3][3].v==='midi'&&s.cells[2][0].v===4&&s.cells[0][0].v===8&&s.cells[0][3].v===4 },
 
-/* ============ BLOC 6, LE BOSS (60) : un seul très long programme, tout le jeu ============ */
+/* ============ BLOC 6, LE BOSS (61) : un seul très long programme, tout le jeu ============ */
 { bloc:6, title:"La grande révision (LE BOSS)", wrap:true,
   showValues:true,
   cells:[[2,0,0,"so",0],[0,3,0,0,9],[8,0,0,6,4],[0,0,"",0,0]], start:[0,0],
@@ -1162,7 +1177,7 @@ const LEVELS = [
 /* ================= moteur ================= */
 const $=id=>document.getElementById(id);
 let li=0, level=null, G=null, errors=0, dlgIdx=-1, lockUntil=0;
-/* les blocs restent un outil interne de design : le testeur ne voit que "niveau X / 60" */
+/* les blocs restent un outil interne de design : le testeur ne voit que "niveau X / 61" */
 
 /* ---- tutoriels scriptés (pas-à-pas) ----
    step = {say?, key?, do?, pbText?, spot?:['grid','prog'], line?:n|[n], probe?, advance?}
